@@ -101,7 +101,7 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.95));
+            background: rgb(0, 0, 0);
             color: white;
             padding: 16px 32px;
             border-radius: 16px;
@@ -109,8 +109,6 @@
             font-weight: bold;
             z-index: 30;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(12px);
-            border: 2px solid rgba(255, 255, 255, 0.15);
             white-space: nowrap;
             pointer-events: none;
         }
@@ -181,9 +179,19 @@
             transform: scale(0.95);
         }
         
+        .control-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .control-btn:disabled:hover {
+            transform: none;
+        }
+        
         .file-input-wrapper {
             position: relative;
-            overflow: hidden;
+            overflow: visible;
         }
         
         .file-input-wrapper input[type=file] {
@@ -191,10 +199,45 @@
             left: -9999px;
         }
         
-        .zoom-indicator {
+        .file-input-wrapper label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s;
+        }
+        
+        .file-input-wrapper label:hover {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .file-input-wrapper label:active {
+            transform: scale(0.95);
+        }
+        
+        .bottom-left-controls {
             position: fixed;
             bottom: 20px;
             left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 30;
+        }
+        
+        .zoom-indicator {
             background: rgba(0, 0, 0, 0.85);
             color: white;
             padding: 10px 20px;
@@ -202,10 +245,60 @@
             font-family: 'Courier New', monospace;
             font-size: 16px;
             font-weight: bold;
-            z-index: 30;
             backdrop-filter: blur(12px);
             border: 2px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+        
+        .zoom-indicator:hover {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .zoom-indicator:active {
+            transform: scale(0.95);
+        }
+        
+        .undo-redo-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .undo-redo-btn {
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s;
+        }
+        
+        .undo-redo-btn:hover:not(:disabled) {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .undo-redo-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        
+        .undo-redo-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
         }
         
         .magnifier {
@@ -312,6 +405,18 @@
                 height: 52px;
                 font-size: 22px;
             }
+            
+            .file-input-wrapper label {
+                width: 52px;
+                height: 52px;
+                font-size: 22px;
+            }
+            
+            .undo-redo-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
         }
     </style>
 </head>
@@ -340,13 +445,19 @@
         <div class="top-controls">
             <div class="file-input-wrapper">
                 <input type="file" id="imageInput" accept="image/*">
-                <label for="imageInput" class="control-btn" title="上传图片">📷</label>
+                <label for="imageInput" title="上传图片">📷</label>
             </div>
             <button id="resetBtn" class="control-btn" title="重置">🔄</button>
         </div>
         
-        <!-- 缩放指示器 -->
-        <div id="zoomIndicator" class="zoom-indicator" style="display: none;">100%</div>
+        <!-- 左下角控制区 -->
+        <div class="bottom-left-controls">
+            <div id="zoomIndicator" class="zoom-indicator" style="display: none;" title="点击适应视图">100%</div>
+            <div class="undo-redo-controls">
+                <button id="undoBtn" class="undo-redo-btn" title="撤销 (Ctrl+Z)" disabled>↶</button>
+                <button id="redoBtn" class="undo-redo-btn" title="重做 (Ctrl+Y)" disabled>↷</button>
+            </div>
+        </div>
     </div>
 
     <!-- 放大镜（仅电脑端） -->
@@ -373,6 +484,8 @@
         const centeringLR = document.getElementById('centeringLR');
         const centeringTB = document.getElementById('centeringTB');
         const zoomIndicator = document.getElementById('zoomIndicator');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
 
         let image = null;
         let outerPoints = [];
@@ -398,6 +511,13 @@
             isPanning: false,
             isPinching: false,
             lastTouches: [],  // 记录上一帧的所有触摸点
+        };
+
+        // Undo/Redo 历史记录
+        let history = {
+            snapshots: [],     // 状态快照数组
+            currentIndex: -1,  // 当前快照索引
+            maxSize: 50        // 最大保存数量
         };
 
         const isMobile = window.innerWidth < 768;
@@ -434,6 +554,10 @@
             createMarkers();
             calculateMargins();
             
+            // 初始化历史记录
+            clearHistory();
+            saveSnapshot();
+            
             zoomIndicator.style.display = 'block';
         }
 
@@ -450,6 +574,20 @@
             
             applyViewportTransform();
         }
+        
+        function fitView() {
+            if (!image) return;
+            
+            // 添加平滑过渡
+            canvasContainer.classList.add('smooth-transition');
+            
+            resetViewport();
+            
+            // 移除过渡效果
+            setTimeout(() => {
+                canvasContainer.classList.remove('smooth-transition');
+            }, 300);
+        }
 
         function applyViewportTransform() {
             canvasContainer.style.transform = 
@@ -461,6 +599,9 @@
         function updateZoomIndicator() {
             zoomIndicator.textContent = `${Math.round(viewport.scale * 100)}%`;
         }
+        
+        // 点击缩放指示器执行 fit view
+        zoomIndicator.addEventListener('click', fitView);
 
         function initializePoints() {
             const margin = 0.1;
@@ -771,6 +912,9 @@
         function stopDrag(e) {
             if (draggedMarker || draggedEdge) {
                 e.preventDefault();
+                
+                // 拖拽结束后保存快照
+                saveSnapshot();
             }
             
             if (draggedMarker) {
@@ -1010,6 +1154,85 @@
                 drawCanvas();
                 createMarkers();
                 calculateMargins();
+                saveSnapshot();
+            }
+        });
+
+        // ===== Undo/Redo 功能 =====
+        
+        function createSnapshot() {
+            return {
+                outerPoints: outerPoints.map(p => ({...p})),
+                innerPoints: innerPoints.map(p => ({...p}))
+            };
+        }
+        
+        function restoreSnapshot(snapshot) {
+            outerPoints = snapshot.outerPoints.map(p => ({...p}));
+            innerPoints = snapshot.innerPoints.map(p => ({...p}));
+            
+            drawCanvas();
+            updateMarkerPositions();
+            calculateMargins();
+        }
+        
+        function saveSnapshot() {
+            // 如果当前不在最新的快照，删除后面的所有快照
+            if (history.currentIndex < history.snapshots.length - 1) {
+                history.snapshots = history.snapshots.slice(0, history.currentIndex + 1);
+            }
+            
+            // 添加新快照
+            history.snapshots.push(createSnapshot());
+            
+            // 限制历史记录大小
+            if (history.snapshots.length > history.maxSize) {
+                history.snapshots.shift();
+            } else {
+                history.currentIndex++;
+            }
+            
+            updateUndoRedoButtons();
+        }
+        
+        function clearHistory() {
+            history.snapshots = [];
+            history.currentIndex = -1;
+            updateUndoRedoButtons();
+        }
+        
+        function undo() {
+            if (history.currentIndex > 0) {
+                history.currentIndex--;
+                restoreSnapshot(history.snapshots[history.currentIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function redo() {
+            if (history.currentIndex < history.snapshots.length - 1) {
+                history.currentIndex++;
+                restoreSnapshot(history.snapshots[history.currentIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function updateUndoRedoButtons() {
+            undoBtn.disabled = history.currentIndex <= 0;
+            redoBtn.disabled = history.currentIndex >= history.snapshots.length - 1;
+        }
+        
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
             }
         });
 
