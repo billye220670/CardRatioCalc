@@ -25,31 +25,37 @@
         
         .marker {
             position: absolute;
-            width: 24px;
-            height: 24px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            border: 3px solid white;
             transform: translate(-50%, -50%);
             cursor: move;
             touch-action: none;
-            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            box-shadow: 0 0 4px rgba(0,0,0,0.6);
             z-index: 10;
             opacity: 1;
-            transition: opacity 0.15s ease;
+            transition: all 0.15s ease;
+            border: none;
+        }
+        
+        .marker:hover {
+            width: 12px;
+            height: 12px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.8);
         }
         
         .marker.dragging {
-            opacity: 0.15;
+            width: 24px;
+            height: 24px;
+            opacity: 0.3;
         }
         
         .outer-marker { 
-            background-color: rgba(239, 68, 68, 0.2);
-            border-color: #ef4444;
+            background-color: #ef4444;
         }
         
         .inner-marker { 
-            background-color: rgba(59, 130, 246, 0.2);
-            border-color: #3b82f6;
+            background-color: #3b82f6;
         }
         
         .canvas-wrapper {
@@ -81,7 +87,7 @@
         }
         
         .centering-overlay {
-            position: absolute;
+            position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
@@ -91,7 +97,7 @@
             border-radius: 16px;
             font-family: 'Courier New', monospace;
             font-weight: bold;
-            z-index: 20;
+            z-index: 30;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
             backdrop-filter: blur(12px);
             border: 2px solid rgba(255, 255, 255, 0.15);
@@ -128,13 +134,13 @@
         }
         
         .top-controls {
-            position: absolute;
+            position: fixed;
             top: 20px;
             right: 20px;
             display: flex;
             flex-direction: column;
             gap: 12px;
-            z-index: 20;
+            z-index: 30;
         }
         
         .control-btn {
@@ -175,47 +181,8 @@
             left: -9999px;
         }
         
-        .zoom-controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 15;
-        }
-        
-        .zoom-btn {
-            width: 56px;
-            height: 56px;
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            user-select: none;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-            transition: all 0.2s;
-        }
-        
-        .zoom-btn:hover {
-            background: rgba(0, 0, 0, 0.95);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
-        }
-        
-        .zoom-btn:active {
-            transform: scale(0.95);
-        }
-        
         .zoom-indicator {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             left: 20px;
             background: rgba(0, 0, 0, 0.85);
@@ -225,7 +192,7 @@
             font-family: 'Courier New', monospace;
             font-size: 16px;
             font-weight: bold;
-            z-index: 15;
+            z-index: 30;
             backdrop-filter: blur(12px);
             border: 2px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -292,54 +259,20 @@
             box-shadow: 0 0 2px rgba(255,255,255,0.8);
         }
         
-        .result-panel {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.9);
-            backdrop-filter: blur(12px);
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: 16px;
-            padding: 16px;
-            z-index: 20;
-            max-width: 90vw;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-        }
-        
-        .result-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            color: white;
-            font-size: 12px;
-        }
-        
-        .result-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 8px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .result-item h3 {
-            font-size: 11px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            opacity: 0.7;
-        }
-        
-        .result-item .value {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 13px;
-        }
-        
         @media (max-width: 768px) {
             .marker {
-                width: 36px;
-                height: 36px;
-                border: 4px solid white;
+                width: 12px;
+                height: 12px;
+            }
+            
+            .marker:hover {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .marker.dragging {
+                width: 32px;
+                height: 32px;
             }
             
             .centering-text {
@@ -365,37 +298,28 @@
                 height: 52px;
                 font-size: 22px;
             }
-            
-            .zoom-btn {
-                width: 52px;
-                height: 52px;
-                font-size: 26px;
-            }
-            
-            .result-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
         }
     </style>
 </head>
 <body>
     <div class="canvas-wrapper" id="canvasWrapper">
         <div class="canvas-container" id="canvasContainer">
-            <!-- Centering 覆层 -->
-            <div id="centeringOverlay" class="centering-overlay" style="display: none;">
-                <div class="centering-text">
-                    <div class="centering-section">
-                        <span class="centering-label">L|R</span>
-                        <span class="centering-value" id="centeringLR">--/--</span>
-                    </div>
-                    <span class="centering-separator">•</span>
-                    <div class="centering-section">
-                        <span class="centering-label">T|B</span>
-                        <span class="centering-value" id="centeringTB">--/--</span>
-                    </div>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <!-- Centering 覆层 - 固定在页面上方 -->
+        <div id="centeringOverlay" class="centering-overlay" style="display: none;">
+            <div class="centering-text">
+                <div class="centering-section">
+                    <span class="centering-label">L|R</span>
+                    <span class="centering-value" id="centeringLR">--/--</span>
+                </div>
+                <span class="centering-separator">•</span>
+                <div class="centering-section">
+                    <span class="centering-label">T|B</span>
+                    <span class="centering-value" id="centeringTB">--/--</span>
                 </div>
             </div>
-            <canvas id="canvas"></canvas>
         </div>
         
         <!-- 顶部控制按钮 -->
@@ -409,39 +333,6 @@
         
         <!-- 缩放指示器 -->
         <div id="zoomIndicator" class="zoom-indicator" style="display: none;">100%</div>
-        
-        <!-- 缩放控制按钮（仅移动端显示） -->
-        <div class="zoom-controls sm:hidden" id="zoomControls" style="display: none;">
-            <div class="zoom-btn" id="zoomInBtn">+</div>
-            <div class="zoom-btn" id="zoomOutBtn">−</div>
-            <div class="zoom-btn" id="zoomResetBtn">⊙</div>
-        </div>
-        
-        <!-- 结果面板 -->
-        <div id="resultPanel" class="result-panel" style="display: none;">
-            <div class="result-grid">
-                <div class="result-item">
-                    <h3>上边距</h3>
-                    <div class="value" id="marginTop">--</div>
-                    <div class="value" id="ratioTop">--</div>
-                </div>
-                <div class="result-item">
-                    <h3>下边距</h3>
-                    <div class="value" id="marginBottom">--</div>
-                    <div class="value" id="ratioBottom">--</div>
-                </div>
-                <div class="result-item">
-                    <h3>左边距</h3>
-                    <div class="value" id="marginLeft">--</div>
-                    <div class="value" id="ratioLeft">--</div>
-                </div>
-                <div class="result-item">
-                    <h3>右边距</h3>
-                    <div class="value" id="marginRight">--</div>
-                    <div class="value" id="ratioRight">--</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- 放大镜（仅电脑端） -->
@@ -461,7 +352,6 @@
         const resetBtn = document.getElementById('resetBtn');
         const canvasWrapper = document.getElementById('canvasWrapper');
         const canvasContainer = document.getElementById('canvasContainer');
-        const resultPanel = document.getElementById('resultPanel');
         const magnifier = document.getElementById('magnifier');
         const magnifierCanvas = document.getElementById('magnifierCanvas');
         const magnifierCtx = magnifierCanvas.getContext('2d');
@@ -469,10 +359,6 @@
         const centeringLR = document.getElementById('centeringLR');
         const centeringTB = document.getElementById('centeringTB');
         const zoomIndicator = document.getElementById('zoomIndicator');
-        const zoomControls = document.getElementById('zoomControls');
-        const zoomInBtn = document.getElementById('zoomInBtn');
-        const zoomOutBtn = document.getElementById('zoomOutBtn');
-        const zoomResetBtn = document.getElementById('zoomResetBtn');
 
         let image = null;
         let outerPoints = [];
@@ -500,7 +386,9 @@
             lastTouches: [],
             startDistance: 0,
             startScale: 1,
-            startTranslate: {x: 0, y: 0}
+            startTranslate: {x: 0, y: 0},
+            pinchCenter: {x: 0, y: 0},
+            activeTouches: 0
         };
 
         const isMobile = window.innerWidth < 768;
@@ -527,11 +415,9 @@
         });
 
         function initializeCanvas() {
-            // Canvas 使用原始图片尺寸
             canvas.width = image.width;
             canvas.height = image.height;
             
-            // 初始化 viewport 使图片适应容器
             resetViewport();
             
             initializePoints();
@@ -539,11 +425,7 @@
             createMarkers();
             calculateMargins();
             
-            // 显示缩放控制（仅移动端）
-            if (isMobile) {
-                zoomControls.style.display = 'flex';
-                zoomIndicator.style.display = 'block';
-            }
+            zoomIndicator.style.display = 'block';
         }
 
         function resetViewport() {
@@ -658,7 +540,6 @@
                 const points = type === 'outer' ? outerPoints : innerPoints;
                 const point = points[index];
                 
-                // Marker 在 viewport 坐标系中的位置
                 marker.style.left = (point.x * viewport.scale + viewport.translateX) + 'px';
                 marker.style.top = (point.y * viewport.scale + viewport.translateY) + 'px';
             });
@@ -680,7 +561,6 @@
             markers.push(marker);
         }
 
-        // 计算点到线段的最短距离
         function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
             const A = px - x1;
             const B = py - y1;
@@ -752,7 +632,6 @@
             return nearestEdge;
         }
 
-        // 将屏幕坐标转换为 canvas 坐标
         function screenToCanvas(screenX, screenY) {
             const wrapperRect = canvasWrapper.getBoundingClientRect();
             const x = screenX - wrapperRect.left;
@@ -764,12 +643,11 @@
             return {x: canvasX, y: canvasY};
         }
 
-        // Canvas 上的触摸/鼠标事件
         canvas.addEventListener('mousedown', handleCanvasDown);
         canvas.addEventListener('touchstart', handleCanvasTouchStart, {passive: false});
 
         function handleCanvasDown(e) {
-            if (isMobile) return; // 移动端使用触摸事件
+            if (isMobile) return;
             
             const pos = screenToCanvas(e.clientX, e.clientY);
             const edge = findNearestEdge(pos.x, pos.y);
@@ -785,7 +663,6 @@
             if (!isMobile) return;
             
             if (e.touches.length === 1) {
-                // 单指：尝试拖动边
                 const touch = e.touches[0];
                 const pos = screenToCanvas(touch.clientX, touch.clientY);
                 const edge = findNearestEdge(pos.x, pos.y);
@@ -795,7 +672,6 @@
                     startDragEdge(edge, pos.x, pos.y);
                 }
             } else if (e.touches.length === 2) {
-                // 双指：开始缩放/平移
                 e.preventDefault();
                 startPinchZoom(e);
             }
@@ -840,7 +716,7 @@
 
         function drag(e) {
             if (!draggedMarker && !draggedEdge) return;
-            if (touchState.isPinching) return; // 如果正在缩放，不处理拖动
+            if (touchState.isPinching) return;
             
             e.preventDefault();
             
@@ -945,11 +821,12 @@
             if (!isMobile) return;
             if (e.target !== canvasWrapper && e.target !== canvas) return;
             
+            touchState.activeTouches = e.touches.length;
+            
             if (e.touches.length === 2) {
                 e.preventDefault();
                 startPinchZoom(e);
             } else if (e.touches.length === 1 && !draggedMarker && !draggedEdge) {
-                // 单指平移（如果没有拖动角点或边）
                 const touch = e.touches[0];
                 const pos = screenToCanvas(touch.clientX, touch.clientY);
                 const edge = findNearestEdge(pos.x, pos.y);
@@ -970,6 +847,7 @@
             
             if (e.touches.length === 2 && touchState.isPinching) {
                 e.preventDefault();
+                touchState.activeTouches = 2;
                 continuePinchZoom(e);
             } else if (e.touches.length === 1 && touchState.isPanning) {
                 e.preventDefault();
@@ -992,11 +870,15 @@
         function handleWrapperTouchEnd(e) {
             if (!isMobile) return;
             
-            if (e.touches.length < 2) {
-                touchState.isPinching = false;
-            }
+            // 检查是否所有手指都离开了屏幕
             if (e.touches.length === 0) {
+                touchState.isPinching = false;
                 touchState.isPanning = false;
+                touchState.activeTouches = 0;
+            } else if (e.touches.length < 2 && touchState.isPinching) {
+                // 从双指变为单指，结束缩放
+                touchState.isPinching = false;
+                touchState.activeTouches = e.touches.length;
             }
         }
 
@@ -1012,8 +894,12 @@
         function handleCanvasTouchEnd(e) {
             if (!isMobile) return;
             
-            if (e.touches.length < 2) {
+            if (e.touches.length === 0) {
                 touchState.isPinching = false;
+                touchState.activeTouches = 0;
+            } else if (e.touches.length < 2) {
+                touchState.isPinching = false;
+                touchState.activeTouches = e.touches.length;
             }
         }
 
@@ -1022,6 +908,7 @@
             const touch2 = e.touches[1];
             
             touchState.isPinching = true;
+            touchState.activeTouches = 2;
             touchState.startDistance = getDistance(touch1, touch2);
             touchState.startScale = viewport.scale;
             
@@ -1039,22 +926,24 @@
         }
 
         function continuePinchZoom(e) {
+            // 确保仍然是双指触摸
+            if (e.touches.length !== 2) {
+                return;
+            }
+            
             const touch1 = e.touches[0];
             const touch2 = e.touches[1];
             
             const currentDistance = getDistance(touch1, touch2);
             const scale = (currentDistance / touchState.startDistance) * touchState.startScale;
             
-            // 限制缩放范围
             const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, scale));
             
-            // 计算缩放中心点在 canvas 坐标系中的位置
             const canvasPoint = {
                 x: (touchState.pinchCenter.x - touchState.startTranslate.x) / touchState.startScale,
                 y: (touchState.pinchCenter.y - touchState.startTranslate.y) / touchState.startScale
             };
             
-            // 更新 translate 使缩放中心点保持不变
             viewport.scale = newScale;
             viewport.translateX = touchState.pinchCenter.x - canvasPoint.x * newScale;
             viewport.translateY = touchState.pinchCenter.y - canvasPoint.y * newScale;
@@ -1073,42 +962,6 @@
                 x: (touch1.clientX + touch2.clientX) / 2,
                 y: (touch1.clientY + touch2.clientY) / 2
             };
-        }
-
-        // 缩放按钮（移动端）
-        zoomInBtn.addEventListener('click', () => {
-            zoomToCenter(viewport.scale * 1.3);
-        });
-
-        zoomOutBtn.addEventListener('click', () => {
-            zoomToCenter(viewport.scale / 1.3);
-        });
-
-        zoomResetBtn.addEventListener('click', () => {
-            canvasContainer.classList.add('smooth-transition');
-            resetViewport();
-            setTimeout(() => {
-                canvasContainer.classList.remove('smooth-transition');
-            }, 300);
-        });
-
-        function zoomToCenter(newScale) {
-            const wrapperRect = canvasWrapper.getBoundingClientRect();
-            const centerX = wrapperRect.width / 2;
-            const centerY = wrapperRect.height / 2;
-            
-            newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, newScale));
-            
-            const canvasPoint = {
-                x: (centerX - viewport.translateX) / viewport.scale,
-                y: (centerY - viewport.translateY) / viewport.scale
-            };
-            
-            viewport.scale = newScale;
-            viewport.translateX = centerX - canvasPoint.x * newScale;
-            viewport.translateY = centerY - canvasPoint.y * newScale;
-            
-            applyViewportTransform();
         }
 
         resetBtn.addEventListener('click', () => {
@@ -1208,11 +1061,6 @@
             
             const rectifiedInner = innerPoints.map(p => applyPerspectiveTransform(p, transformMatrix));
             
-            const innerWidth = (distance(rectifiedInner[0], rectifiedInner[1]) + 
-                               distance(rectifiedInner[2], rectifiedInner[3])) / 2;
-            const innerHeight = (distance(rectifiedInner[0], rectifiedInner[3]) + 
-                                distance(rectifiedInner[1], rectifiedInner[2])) / 2;
-            
             const marginTop = (rectifiedInner[0].y + rectifiedInner[1].y) / 2;
             const marginBottom = (outerHeight - (rectifiedInner[2].y + rectifiedInner[3].y) / 2);
             const marginLeft = (rectifiedInner[0].x + rectifiedInner[3].x) / 2;
@@ -1224,18 +1072,6 @@
             const ratioRight = (marginRight / outerWidth * 100).toFixed(2);
 
             updateCenteringOverlay(ratioLeft, ratioRight, ratioTop, ratioBottom);
-
-            document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)}px`;
-            document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)}px`;
-            document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)}px`;
-            document.getElementById('marginRight').textContent = `${marginRight.toFixed(1)}px`;
-
-            document.getElementById('ratioTop').textContent = `${ratioTop}%`;
-            document.getElementById('ratioBottom').textContent = `${ratioBottom}%`;
-            document.getElementById('ratioLeft').textContent = `${ratioLeft}%`;
-            document.getElementById('ratioRight').textContent = `${ratioRight}%`;
-
-            resultPanel.style.display = 'block';
         }
 
         function updateCenteringOverlay(left, right, top, bottom) {
