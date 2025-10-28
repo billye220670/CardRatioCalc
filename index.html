@@ -8,9 +8,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            touch-action: pan-y;
+            touch-action: none;
             -webkit-user-select: none;
             user-select: none;
+            overscroll-behavior: none;
         }
         
         .marker {
@@ -35,30 +36,37 @@
         .outer-marker { background-color: #ef4444; }
         .inner-marker { background-color: #3b82f6; }
         
-        .canvas-container {
+        .canvas-wrapper {
             position: relative;
-            display: inline-block;
+            width: 100%;
+            height: 600px;
+            overflow: hidden;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
-            overflow: visible;
-            max-width: 100%;
+            background: #f9fafb;
             touch-action: none;
-            cursor: crosshair;
         }
         
-        .canvas-container.dragging-edge {
-            cursor: move;
+        .canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            transition: none;
+        }
+        
+        .canvas-container.smooth-transition {
+            transition: transform 0.3s ease-out;
         }
         
         canvas {
             display: block;
-            max-width: 100%;
-            height: auto;
+            touch-action: none;
         }
         
         .centering-overlay {
             position: absolute;
-            top: -60px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.95));
@@ -100,6 +108,54 @@
         
         .centering-separator {
             color: #666;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 15;
+        }
+        
+        .zoom-btn {
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .zoom-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 15;
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
         }
         
         .magnifier {
@@ -170,14 +226,8 @@
                 border: 4px solid white;
             }
             
-            .magnifier {
-                width: 100px;
-                height: 100px;
-            }
-            
-            .centering-overlay {
-                top: -55px;
-                padding: 10px 16px;
+            .canvas-wrapper {
+                height: 400px;
             }
             
             .centering-text {
@@ -191,6 +241,10 @@
             
             .centering-value {
                 font-size: 14px;
+            }
+            
+            .centering-overlay {
+                padding: 10px 16px;
             }
         }
     </style>
@@ -225,10 +279,9 @@
                         <li>上传图片后自动生成8个角点和8条边</li>
                         <li><span class="text-red-500 font-bold">红色</span>代表外边框（卡片物理边缘）</li>
                         <li><span class="text-blue-500 font-bold">蓝色</span>代表内边框（设计边缘）</li>
-                        <li><strong>拖动角点</strong>：精确调整单个角点，拖动时角点半透明避免遮挡</li>
-                        <li><strong>拖动边线</strong>：点击边线附近拖动整条边</li>
+                        <li class="hidden sm:list-item"><strong>电脑端</strong>：拖动角点精确调整，拖动边线整体移动，拖动角点时显示放大镜</li>
+                        <li class="sm:hidden"><strong>手机端</strong>：双指缩放和平移画布，单指拖动角点和边线</li>
                         <li>支持任意角度的边框（透视拍摄）</li>
-                        <li>拖动角点时显示放大镜辅助定位</li>
                         <li>图片上方实时显示 Centering 数据</li>
                     </ul>
                 </div>
@@ -240,22 +293,34 @@
         </div>
 
         <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
-            <div class="canvas-container" id="canvasContainer">
-                <!-- Centering 覆层 -->
-                <div id="centeringOverlay" class="centering-overlay" style="display: none;">
-                    <div class="centering-text">
-                        <div class="centering-section">
-                            <span class="centering-label">L|R</span>
-                            <span class="centering-value" id="centeringLR">--/--</span>
-                        </div>
-                        <span class="centering-separator">•</span>
-                        <div class="centering-section">
-                            <span class="centering-label">T|B</span>
-                            <span class="centering-value" id="centeringTB">--/--</span>
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <div class="canvas-container" id="canvasContainer">
+                    <!-- Centering 覆层 -->
+                    <div id="centeringOverlay" class="centering-overlay" style="display: none;">
+                        <div class="centering-text">
+                            <div class="centering-section">
+                                <span class="centering-label">L|R</span>
+                                <span class="centering-value" id="centeringLR">--/--</span>
+                            </div>
+                            <span class="centering-separator">•</span>
+                            <div class="centering-section">
+                                <span class="centering-label">T|B</span>
+                                <span class="centering-value" id="centeringTB">--/--</span>
+                            </div>
                         </div>
                     </div>
+                    <canvas id="canvas"></canvas>
                 </div>
-                <canvas id="canvas"></canvas>
+                
+                <!-- 缩放指示器 -->
+                <div id="zoomIndicator" class="zoom-indicator" style="display: none;">100%</div>
+                
+                <!-- 缩放控制按钮（仅移动端显示） -->
+                <div class="zoom-controls sm:hidden" id="zoomControls" style="display: none;">
+                    <div class="zoom-btn" id="zoomInBtn">+</div>
+                    <div class="zoom-btn" id="zoomOutBtn">−</div>
+                    <div class="zoom-btn" id="zoomResetBtn">⊙</div>
+                </div>
             </div>
         </div>
 
@@ -354,8 +419,8 @@
         </div>
     </div>
 
-    <!-- 放大镜 -->
-    <div id="magnifier" class="magnifier">
+    <!-- 放大镜（仅电脑端） -->
+    <div id="magnifier" class="magnifier hidden sm:block">
         <canvas id="magnifierCanvas"></canvas>
         <div class="crosshair">
             <div class="crosshair-line-h"></div>
@@ -369,6 +434,7 @@
         const ctx = canvas.getContext('2d');
         const imageInput = document.getElementById('imageInput');
         const resetBtn = document.getElementById('resetBtn');
+        const canvasWrapper = document.getElementById('canvasWrapper');
         const canvasContainer = document.getElementById('canvasContainer');
         const resultPanel = document.getElementById('resultPanel');
         const magnifier = document.getElementById('magnifier');
@@ -377,6 +443,11 @@
         const centeringOverlay = document.getElementById('centeringOverlay');
         const centeringLR = document.getElementById('centeringLR');
         const centeringTB = document.getElementById('centeringTB');
+        const zoomIndicator = document.getElementById('zoomIndicator');
+        const zoomControls = document.getElementById('zoomControls');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomResetBtn = document.getElementById('zoomResetBtn');
 
         let image = null;
         let outerPoints = [];
@@ -387,11 +458,30 @@
         let draggedIndex = -1;
         let draggedType = '';
         let dragStartPos = null;
-        let canvasScale = 1;
 
+        // Viewport 变换状态
+        let viewport = {
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            minScale: 0.5,
+            maxScale: 5
+        };
+
+        // 触摸状态
+        let touchState = {
+            isPanning: false,
+            isPinching: false,
+            lastTouches: [],
+            startDistance: 0,
+            startScale: 1,
+            startTranslate: {x: 0, y: 0}
+        };
+
+        const isMobile = window.innerWidth < 768;
         const ZOOM_LEVEL = 2;
-        const MAGNIFIER_SIZE = window.innerWidth < 768 ? 100 : 120;
-        const EDGE_CLICK_THRESHOLD = window.innerWidth < 768 ? 20 : 15; // 点击边的阈值距离（像素）
+        const MAGNIFIER_SIZE = 120;
+        const EDGE_CLICK_THRESHOLD = isMobile ? 20 : 15;
 
         magnifierCanvas.width = MAGNIFIER_SIZE * 2;
         magnifierCanvas.height = MAGNIFIER_SIZE * 2;
@@ -403,21 +493,58 @@
                 reader.onload = (event) => {
                     image = new Image();
                     image.onload = () => {
-                        const maxWidth = window.innerWidth < 768 ? window.innerWidth - 32 : 800;
-                        canvasScale = Math.min(1, maxWidth / image.width);
-                        canvas.width = image.width * canvasScale;
-                        canvas.height = image.height * canvasScale;
-                        
-                        initializePoints();
-                        drawCanvas();
-                        createMarkers();
-                        calculateMargins();
+                        initializeCanvas();
                     };
                     image.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
             }
         });
+
+        function initializeCanvas() {
+            // Canvas 使用原始图片尺寸
+            canvas.width = image.width;
+            canvas.height = image.height;
+            
+            // 初始化 viewport 使图片适应容器
+            resetViewport();
+            
+            initializePoints();
+            drawCanvas();
+            createMarkers();
+            calculateMargins();
+            
+            // 显示缩放控制（仅移动端）
+            if (isMobile) {
+                zoomControls.style.display = 'flex';
+                zoomIndicator.style.display = 'block';
+            }
+        }
+
+        function resetViewport() {
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            const scaleX = wrapperRect.width / canvas.width;
+            const scaleY = wrapperRect.height / canvas.height;
+            viewport.scale = Math.min(scaleX, scaleY) * 0.95;
+            viewport.translateX = (wrapperRect.width - canvas.width * viewport.scale) / 2;
+            viewport.translateY = (wrapperRect.height - canvas.height * viewport.scale) / 2;
+            
+            viewport.minScale = Math.min(scaleX, scaleY) * 0.3;
+            viewport.maxScale = 5;
+            
+            applyViewportTransform();
+        }
+
+        function applyViewportTransform() {
+            canvasContainer.style.transform = 
+                `translate(${viewport.translateX}px, ${viewport.translateY}px) scale(${viewport.scale})`;
+            updateZoomIndicator();
+            updateMarkerPositions();
+        }
+
+        function updateZoomIndicator() {
+            zoomIndicator.textContent = `${Math.round(viewport.scale * 100)}%`;
+        }
 
         function initializePoints() {
             const margin = 0.1;
@@ -500,17 +627,15 @@
         }
 
         function updateMarkerPositions() {
-            const rect = canvas.getBoundingClientRect();
-            const displayScale = rect.width / canvas.width;
-            
             markers.forEach(marker => {
                 const type = marker.dataset.type;
                 const index = parseInt(marker.dataset.index);
                 const points = type === 'outer' ? outerPoints : innerPoints;
                 const point = points[index];
                 
-                marker.style.left = (point.x * displayScale) + 'px';
-                marker.style.top = (point.y * displayScale) + 'px';
+                // Marker 在 viewport 坐标系中的位置
+                marker.style.left = (point.x * viewport.scale + viewport.translateX) + 'px';
+                marker.style.top = (point.y * viewport.scale + viewport.translateY) + 'px';
             });
         }
 
@@ -518,18 +643,15 @@
             const marker = document.createElement('div');
             marker.className = `marker ${type}-marker`;
             
-            const rect = canvas.getBoundingClientRect();
-            const displayScale = rect.width / canvas.width;
-            
-            marker.style.left = (x * displayScale) + 'px';
-            marker.style.top = (y * displayScale) + 'px';
+            marker.style.left = (x * viewport.scale + viewport.translateX) + 'px';
+            marker.style.top = (y * viewport.scale + viewport.translateY) + 'px';
             marker.dataset.type = type;
             marker.dataset.index = index;
             
             marker.addEventListener('mousedown', startDragMarker);
             marker.addEventListener('touchstart', startDragMarker, {passive: false});
             
-            canvasContainer.appendChild(marker);
+            canvasWrapper.appendChild(marker);
             markers.push(marker);
         }
 
@@ -566,12 +688,10 @@
             return Math.sqrt(dx * dx + dy * dy);
         }
 
-        // 检测点击位置是否在某条边附近
         function findNearestEdge(canvasX, canvasY) {
             let nearestEdge = null;
-            let minDistance = EDGE_CLICK_THRESHOLD;
+            let minDistance = EDGE_CLICK_THRESHOLD / viewport.scale;
 
-            // 检查外边框的4条边
             for (let i = 0; i < 4; i++) {
                 const p1 = outerPoints[i];
                 const p2 = outerPoints[(i + 1) % 4];
@@ -588,7 +708,6 @@
                 }
             }
 
-            // 检查内边框的4条边
             for (let i = 0; i < 4; i++) {
                 const p1 = innerPoints[i];
                 const p2 = innerPoints[(i + 1) % 4];
@@ -608,39 +727,68 @@
             return nearestEdge;
         }
 
-        // Canvas 上的鼠标/触摸事件
+        // 将屏幕坐标转换为 canvas 坐标
+        function screenToCanvas(screenX, screenY) {
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            const x = screenX - wrapperRect.left;
+            const y = screenY - wrapperRect.top;
+            
+            const canvasX = (x - viewport.translateX) / viewport.scale;
+            const canvasY = (y - viewport.translateY) / viewport.scale;
+            
+            return {x: canvasX, y: canvasY};
+        }
+
+        // Canvas 上的触摸/鼠标事件
         canvas.addEventListener('mousedown', handleCanvasDown);
-        canvas.addEventListener('touchstart', handleCanvasDown, {passive: false});
+        canvas.addEventListener('touchstart', handleCanvasTouchStart, {passive: false});
 
         function handleCanvasDown(e) {
-            const pos = getEventPosition(e);
-            const rect = canvas.getBoundingClientRect();
-            const displayScale = rect.width / canvas.width;
-            const canvasX = pos.x / displayScale;
-            const canvasY = pos.y / displayScale;
-
-            // 查找最近的边
-            const edge = findNearestEdge(canvasX, canvasY);
+            if (isMobile) return; // 移动端使用触摸事件
+            
+            const pos = screenToCanvas(e.clientX, e.clientY);
+            const edge = findNearestEdge(pos.x, pos.y);
             
             if (edge) {
                 e.preventDefault();
                 e.stopPropagation();
-                startDragEdge(edge, canvasX, canvasY);
+                startDragEdge(edge, pos.x, pos.y);
+            }
+        }
+
+        function handleCanvasTouchStart(e) {
+            if (!isMobile) return;
+            
+            if (e.touches.length === 1) {
+                // 单指：尝试拖动边
+                const touch = e.touches[0];
+                const pos = screenToCanvas(touch.clientX, touch.clientY);
+                const edge = findNearestEdge(pos.x, pos.y);
+                
+                if (edge) {
+                    e.preventDefault();
+                    startDragEdge(edge, pos.x, pos.y);
+                }
+            } else if (e.touches.length === 2) {
+                // 双指：开始缩放/平移
+                e.preventDefault();
+                startPinchZoom(e);
             }
         }
 
         function startDragMarker(e) {
             e.preventDefault();
             e.stopPropagation();
+            
             draggedMarker = e.target;
             draggedType = draggedMarker.dataset.type;
             draggedIndex = parseInt(draggedMarker.dataset.index);
             
-            // 设置角点为半透明
             draggedMarker.classList.add('dragging');
             
-            canvasContainer.classList.add('dragging-edge');
-            magnifier.style.display = 'block';
+            if (!isMobile) {
+                magnifier.style.display = 'block';
+            }
             
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', stopDrag);
@@ -652,7 +800,6 @@
             draggedEdge = edge;
             draggedType = edge.type;
             
-            // 记录初始位置
             dragStartPos = {
                 x: canvasX,
                 y: canvasY,
@@ -660,27 +807,76 @@
                 p2: {...edge.points[edge.idx2]}
             };
             
-            canvasContainer.classList.add('dragging-edge');
-            // 拖拽边时不显示放大镜
-            // magnifier.style.display = 'block';
-            
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', stopDrag);
             document.addEventListener('touchmove', drag, {passive: false});
             document.addEventListener('touchend', stopDrag);
         }
 
-        function getEventPosition(e) {
-            const rect = canvas.getBoundingClientRect();
+        function drag(e) {
+            if (!draggedMarker && !draggedEdge) return;
+            if (touchState.isPinching) return; // 如果正在缩放，不处理拖动
+            
+            e.preventDefault();
+            
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top,
-                screenX: clientX,
-                screenY: clientY
-            };
+            const pos = screenToCanvas(clientX, clientY);
+            const x = Math.max(0, Math.min(pos.x, canvas.width));
+            const y = Math.max(0, Math.min(pos.y, canvas.height));
+            
+            if (draggedMarker) {
+                if (draggedType === 'outer') {
+                    outerPoints[draggedIndex] = {x, y};
+                } else {
+                    innerPoints[draggedIndex] = {x, y};
+                }
+                
+                draggedMarker.style.left = (x * viewport.scale + viewport.translateX) + 'px';
+                draggedMarker.style.top = (y * viewport.scale + viewport.translateY) + 'px';
+                
+                if (!isMobile) {
+                    updateMagnifier(x, y, clientX, clientY);
+                }
+            } else if (draggedEdge) {
+                const dx = x - dragStartPos.x;
+                const dy = y - dragStartPos.y;
+                
+                const points = draggedType === 'outer' ? outerPoints : innerPoints;
+                
+                points[draggedEdge.idx1].x = Math.max(0, Math.min(dragStartPos.p1.x + dx, canvas.width));
+                points[draggedEdge.idx1].y = Math.max(0, Math.min(dragStartPos.p1.y + dy, canvas.height));
+                points[draggedEdge.idx2].x = Math.max(0, Math.min(dragStartPos.p2.x + dx, canvas.width));
+                points[draggedEdge.idx2].y = Math.max(0, Math.min(dragStartPos.p2.y + dy, canvas.height));
+                
+                updateMarkerPositions();
+            }
+            
+            drawCanvas();
+            calculateMargins();
+        }
+
+        function stopDrag(e) {
+            if (draggedMarker || draggedEdge) {
+                e.preventDefault();
+            }
+            
+            if (draggedMarker) {
+                draggedMarker.classList.remove('dragging');
+            }
+            
+            draggedMarker = null;
+            draggedEdge = null;
+            draggedIndex = -1;
+            draggedType = '';
+            dragStartPos = null;
+            magnifier.style.display = 'none';
+            
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', drag);
+            document.removeEventListener('touchend', stopDrag);
         }
 
         function updateMagnifier(canvasX, canvasY, screenX, screenY) {
@@ -705,83 +901,189 @@
                 magnifierCanvas.height
             );
 
-            const offsetX = window.innerWidth < 768 ? -60 : 30;
-            const offsetY = window.innerWidth < 768 ? -140 : 30;
-            magnifier.style.left = (screenX + offsetX) + 'px';
-            magnifier.style.top = (screenY + offsetY) + 'px';
+            magnifier.style.left = (screenX + 30) + 'px';
+            magnifier.style.top = (screenY + 30) + 'px';
 
             magnifierCanvas.style.transform = `translate(-50%, -50%)`;
         }
 
-        function drag(e) {
-            if (!draggedMarker && !draggedEdge) return;
-            e.preventDefault();
+        // ===== 移动端双指缩放和平移 =====
+        
+        canvas.addEventListener('touchmove', handleCanvasTouchMove, {passive: false});
+        canvas.addEventListener('touchend', handleCanvasTouchEnd, {passive: false});
+        
+        canvasWrapper.addEventListener('touchstart', handleWrapperTouchStart, {passive: false});
+        canvasWrapper.addEventListener('touchmove', handleWrapperTouchMove, {passive: false});
+        canvasWrapper.addEventListener('touchend', handleWrapperTouchEnd, {passive: false});
+
+        function handleWrapperTouchStart(e) {
+            if (!isMobile) return;
+            if (e.target !== canvasWrapper && e.target !== canvas) return;
             
-            const rect = canvas.getBoundingClientRect();
-            const pos = getEventPosition(e);
-            
-            const displayScale = rect.width / canvas.width;
-            const canvasX = pos.x / displayScale;
-            const canvasY = pos.y / displayScale;
-            
-            const x = Math.max(0, Math.min(canvasX, canvas.width));
-            const y = Math.max(0, Math.min(canvasY, canvas.height));
-            
-            if (draggedMarker) {
-                // 拖动单个角点 - 只更新数据和位置，不重建 marker
-                if (draggedType === 'outer') {
-                    outerPoints[draggedIndex] = {x, y};
-                } else {
-                    innerPoints[draggedIndex] = {x, y};
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                startPinchZoom(e);
+            } else if (e.touches.length === 1 && !draggedMarker && !draggedEdge) {
+                // 单指平移（如果没有拖动角点或边）
+                const touch = e.touches[0];
+                const pos = screenToCanvas(touch.clientX, touch.clientY);
+                const edge = findNearestEdge(pos.x, pos.y);
+                
+                if (!edge) {
+                    e.preventDefault();
+                    touchState.isPanning = true;
+                    touchState.lastTouches = [{
+                        x: touch.clientX,
+                        y: touch.clientY
+                    }];
                 }
-                
-                // 直接更新被拖动的 marker 位置
-                draggedMarker.style.left = (x * displayScale) + 'px';
-                draggedMarker.style.top = (y * displayScale) + 'px';
-                
-                // 拖动角点时更新放大镜
-                updateMagnifier(x, y, pos.screenX, pos.screenY);
-            } else if (draggedEdge) {
-                // 拖动边 - 计算偏移量并应用到两个点
-                const dx = x - dragStartPos.x;
-                const dy = y - dragStartPos.y;
-                
-                const points = draggedType === 'outer' ? outerPoints : innerPoints;
-                
-                points[draggedEdge.idx1].x = Math.max(0, Math.min(dragStartPos.p1.x + dx, canvas.width));
-                points[draggedEdge.idx1].y = Math.max(0, Math.min(dragStartPos.p1.y + dy, canvas.height));
-                points[draggedEdge.idx2].x = Math.max(0, Math.min(dragStartPos.p2.x + dx, canvas.width));
-                points[draggedEdge.idx2].y = Math.max(0, Math.min(dragStartPos.p2.y + dy, canvas.height));
-                
-                // 只更新 marker 位置，不重建
-                updateMarkerPositions();
             }
-            
-            drawCanvas();
-            calculateMargins();
         }
 
-        function stopDrag(e) {
-            if (draggedMarker || draggedEdge) {
+        function handleWrapperTouchMove(e) {
+            if (!isMobile) return;
+            
+            if (e.touches.length === 2 && touchState.isPinching) {
                 e.preventDefault();
+                continuePinchZoom(e);
+            } else if (e.touches.length === 1 && touchState.isPanning) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const dx = touch.clientX - touchState.lastTouches[0].x;
+                const dy = touch.clientY - touchState.lastTouches[0].y;
+                
+                viewport.translateX += dx;
+                viewport.translateY += dy;
+                
+                applyViewportTransform();
+                
+                touchState.lastTouches = [{
+                    x: touch.clientX,
+                    y: touch.clientY
+                }];
             }
+        }
+
+        function handleWrapperTouchEnd(e) {
+            if (!isMobile) return;
             
-            // 恢复角点的不透明度
-            if (draggedMarker) {
-                draggedMarker.classList.remove('dragging');
+            if (e.touches.length < 2) {
+                touchState.isPinching = false;
             }
+            if (e.touches.length === 0) {
+                touchState.isPanning = false;
+            }
+        }
+
+        function handleCanvasTouchMove(e) {
+            if (!isMobile) return;
             
-            draggedMarker = null;
-            draggedEdge = null;
-            draggedIndex = -1;
-            draggedType = '';
-            dragStartPos = null;
-            canvasContainer.classList.remove('dragging-edge');
-            magnifier.style.display = 'none';
-            document.removeEventListener('mousemove', drag);
-            document.removeEventListener('mouseup', stopDrag);
-            document.removeEventListener('touchmove', drag);
-            document.removeEventListener('touchend', stopDrag);
+            if (e.touches.length === 2 && touchState.isPinching) {
+                e.preventDefault();
+                continuePinchZoom(e);
+            }
+        }
+
+        function handleCanvasTouchEnd(e) {
+            if (!isMobile) return;
+            
+            if (e.touches.length < 2) {
+                touchState.isPinching = false;
+            }
+        }
+
+        function startPinchZoom(e) {
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            touchState.isPinching = true;
+            touchState.startDistance = getDistance(touch1, touch2);
+            touchState.startScale = viewport.scale;
+            
+            const midpoint = getMidpoint(touch1, touch2);
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            touchState.pinchCenter = {
+                x: midpoint.x - wrapperRect.left,
+                y: midpoint.y - wrapperRect.top
+            };
+            
+            touchState.startTranslate = {
+                x: viewport.translateX,
+                y: viewport.translateY
+            };
+        }
+
+        function continuePinchZoom(e) {
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            const currentDistance = getDistance(touch1, touch2);
+            const scale = (currentDistance / touchState.startDistance) * touchState.startScale;
+            
+            // 限制缩放范围
+            const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, scale));
+            
+            // 计算缩放中心点在 canvas 坐标系中的位置
+            const canvasPoint = {
+                x: (touchState.pinchCenter.x - touchState.startTranslate.x) / touchState.startScale,
+                y: (touchState.pinchCenter.y - touchState.startTranslate.y) / touchState.startScale
+            };
+            
+            // 更新 translate 使缩放中心点保持不变
+            viewport.scale = newScale;
+            viewport.translateX = touchState.pinchCenter.x - canvasPoint.x * newScale;
+            viewport.translateY = touchState.pinchCenter.y - canvasPoint.y * newScale;
+            
+            applyViewportTransform();
+        }
+
+        function getDistance(touch1, touch2) {
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function getMidpoint(touch1, touch2) {
+            return {
+                x: (touch1.clientX + touch2.clientX) / 2,
+                y: (touch1.clientY + touch2.clientY) / 2
+            };
+        }
+
+        // 缩放按钮（移动端）
+        zoomInBtn.addEventListener('click', () => {
+            zoomToCenter(viewport.scale * 1.3);
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            zoomToCenter(viewport.scale / 1.3);
+        });
+
+        zoomResetBtn.addEventListener('click', () => {
+            canvasContainer.classList.add('smooth-transition');
+            resetViewport();
+            setTimeout(() => {
+                canvasContainer.classList.remove('smooth-transition');
+            }, 300);
+        });
+
+        function zoomToCenter(newScale) {
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            const centerX = wrapperRect.width / 2;
+            const centerY = wrapperRect.height / 2;
+            
+            newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, newScale));
+            
+            const canvasPoint = {
+                x: (centerX - viewport.translateX) / viewport.scale,
+                y: (centerY - viewport.translateY) / viewport.scale
+            };
+            
+            viewport.scale = newScale;
+            viewport.translateX = centerX - canvasPoint.x * newScale;
+            viewport.translateY = centerY - canvasPoint.y * newScale;
+            
+            applyViewportTransform();
         }
 
         resetBtn.addEventListener('click', () => {
@@ -790,26 +1092,6 @@
                 drawCanvas();
                 createMarkers();
                 calculateMargins();
-            }
-        });
-
-        window.addEventListener('resize', () => {
-            if (image) {
-                const maxWidth = window.innerWidth < 768 ? window.innerWidth - 32 : 800;
-                const newScale = Math.min(1, maxWidth / image.width);
-                if (Math.abs(newScale - canvasScale) > 0.01) {
-                    const scaleRatio = newScale / canvasScale;
-                    canvasScale = newScale;
-                    canvas.width = image.width * canvasScale;
-                    canvas.height = image.height * canvasScale;
-                    
-                    outerPoints = outerPoints.map(p => ({x: p.x * scaleRatio, y: p.y * scaleRatio}));
-                    innerPoints = innerPoints.map(p => ({x: p.x * scaleRatio, y: p.y * scaleRatio}));
-                    
-                    drawCanvas();
-                    createMarkers();
-                    calculateMargins();
-                }
             }
         });
 
