@@ -3,37 +3,96 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>游戏卡片边距比例计算器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>游戏卡片边距比例计算器 - Card Centering</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        body {
+            touch-action: pan-y;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
         .marker {
             position: absolute;
-            width: 16px;
-            height: 16px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             border: 3px solid white;
             transform: translate(-50%, -50%);
             cursor: move;
+            touch-action: none;
             box-shadow: 0 0 8px rgba(0,0,0,0.5);
             z-index: 10;
         }
         .outer-marker { background-color: #ef4444; }
         .inner-marker { background-color: #3b82f6; }
+        
         .canvas-container {
             position: relative;
             display: inline-block;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
-            overflow: hidden;
+            overflow: visible;
+            max-width: 100%;
+            touch-action: none;
         }
+        
         canvas {
             display: block;
+            max-width: 100%;
+            height: auto;
         }
+        
+        .centering-overlay {
+            position: absolute;
+            top: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.95));
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            z-index: 20;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
+        }
+        
+        .centering-text {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            font-size: 15px;
+        }
+        
+        .centering-section {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .centering-label {
+            color: #a0a0a0;
+            font-size: 13px;
+        }
+        
+        .centering-value {
+            color: #4ade80;
+            font-size: 16px;
+        }
+        
+        .centering-separator {
+            color: #666;
+        }
+        
         .magnifier {
             position: fixed;
-            width: 150px;
-            height: 150px;
+            width: 120px;
+            height: 120px;
             border: 3px solid #333;
             border-radius: 50%;
             pointer-events: none;
@@ -42,11 +101,13 @@
             display: none;
             overflow: hidden;
         }
+        
         .magnifier canvas {
             position: absolute;
             top: 50%;
             left: 50%;
         }
+        
         .crosshair {
             position: absolute;
             top: 50%;
@@ -54,6 +115,7 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
+        
         .crosshair-line-h {
             position: absolute;
             width: 30px;
@@ -64,6 +126,7 @@
             transform: translate(-50%, -50%);
             box-shadow: 0 0 2px rgba(255,255,255,0.8);
         }
+        
         .crosshair-line-v {
             position: absolute;
             width: 2px;
@@ -74,6 +137,7 @@
             transform: translate(-50%, -50%);
             box-shadow: 0 0 2px rgba(255,255,255,0.8);
         }
+        
         .crosshair-circle {
             position: absolute;
             width: 8px;
@@ -85,56 +149,109 @@
             transform: translate(-50%, -50%);
             box-shadow: 0 0 2px rgba(255,255,255,0.8);
         }
+        
+        @media (max-width: 768px) {
+            .marker {
+                width: 32px;
+                height: 32px;
+                border: 4px solid white;
+            }
+            
+            .magnifier {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .centering-overlay {
+                top: -55px;
+                padding: 10px 16px;
+            }
+            
+            .centering-text {
+                gap: 12px;
+                font-size: 13px;
+            }
+            
+            .centering-label {
+                font-size: 11px;
+            }
+            
+            .centering-value {
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-8">
+<body class="bg-gray-100 min-h-screen p-2 sm:p-8">
     <div class="max-w-6xl mx-auto">
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">游戏卡片边距比例计算器</h1>
-            <p class="text-gray-600 mb-4">上传卡片照片，拖动角点调整内外边框位置，自动计算边距比例（支持透视角度拍摄）</p>
+        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">游戏卡片居中度计算器</h1>
+            <p class="text-sm sm:text-base text-gray-600 mb-4">Card Centering - 上传卡片照片，测量边距比例，评估居中度（支持透视角度拍摄）</p>
             
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">上传卡片照片</label>
                 <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <h3 class="text-lg font-semibold mb-2">操作说明：</h3>
-                    <ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
-                        <li>上传图片后自动生成8个角点</li>
-                        <li><span class="text-red-500 font-bold">红色点</span>代表外边框角点（左上、右上、右下、左下）</li>
-                        <li><span class="text-blue-500 font-bold">蓝色点</span>代表内边框角点（左上、右上、右下、左下）</li>
-                        <li>拖动任意角点调整位置</li>
-                        <li>拖动时会显示放大镜和准心辅助精确定位</li>
-                        <li>半透明黄色区域显示边距范围</li>
-                        <li>✨ <strong>支持透视角度拍摄</strong>，自动矫正计算</li>
-                    </ul>
-                </div>
+            <div class="grid grid-cols-1 gap-4 mb-4">
                 <div class="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-                    <h3 class="text-lg font-semibold mb-2 text-blue-800">💡 透视矫正功能：</h3>
-                    <p class="text-sm text-gray-700">即使卡片是斜着拍摄的，系统也会通过透视变换矫正，计算出真实的边距比例。只需准确标记8个角点即可。</p>
+                    <h3 class="text-base sm:text-lg font-semibold mb-2 text-blue-800">💡 什么是 Card Centering？</h3>
+                    <p class="text-xs sm:text-sm text-gray-700 mb-2">
+                        卡片居中度（Centering）是评估收藏卡品相的重要指标，表示卡面设计在边框内的居中程度。
+                    </p>
+                    <p class="text-xs sm:text-sm text-gray-700">
+                        完美居中的卡片表示为 <strong>"50/50"</strong>（左/右或上/下边距相等），
+                        偏心的卡片可能显示为 <strong>"60/40"</strong> 或 <strong>"70/30"</strong>。
+                        居中度越好，卡片评级和价值越高。
+                    </p>
+                </div>
+                
+                <div>
+                    <h3 class="text-base sm:text-lg font-semibold mb-2">操作说明：</h3>
+                    <ul class="list-disc list-inside text-xs sm:text-sm text-gray-700 space-y-1">
+                        <li>上传图片后自动生成8个角点</li>
+                        <li><span class="text-red-500 font-bold">红色点</span>代表外边框角点（卡片物理边缘）</li>
+                        <li><span class="text-blue-500 font-bold">蓝色点</span>代表内边框角点（设计边缘）</li>
+                        <li>拖动角点精确对齐边框位置</li>
+                        <li>拖动时显示放大镜辅助定位</li>
+                        <li>图片上方实时显示 Centering 数据</li>
+                        <li>✨ 支持透视角度拍摄，自动矫正计算</li>
+                    </ul>
                 </div>
             </div>
 
-            <button id="resetBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition mb-4">
+            <button id="resetBtn" class="bg-gray-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-gray-600 transition mb-4 w-full sm:w-auto">
                 重置到默认位置
             </button>
         </div>
 
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
             <div class="canvas-container" id="canvasContainer">
+                <!-- Centering 覆层 -->
+                <div id="centeringOverlay" class="centering-overlay" style="display: none;">
+                    <div class="centering-text">
+                        <div class="centering-section">
+                            <span class="centering-label">L|R</span>
+                            <span class="centering-value" id="centeringLR">--/--</span>
+                        </div>
+                        <span class="centering-separator">•</span>
+                        <div class="centering-section">
+                            <span class="centering-label">T|B</span>
+                            <span class="centering-value" id="centeringTB">--/--</span>
+                        </div>
+                    </div>
+                </div>
                 <canvas id="canvas"></canvas>
             </div>
         </div>
 
-        <div id="resultPanel" class="bg-white rounded-lg shadow-lg p-6 hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">计算结果（透视矫正后）</h2>
+        <div id="resultPanel" class="bg-white rounded-lg shadow-lg p-4 sm:p-6 hidden">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">计算结果（透视矫正后）</h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-blue-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-blue-800">边距尺寸（矫正后像素）</h3>
-                    <div class="space-y-2 text-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div class="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-blue-800">边距尺寸（矫正后像素）</h3>
+                    <div class="space-y-2 text-xs sm:text-sm">
                         <div class="flex justify-between">
                             <span>上边距:</span>
                             <span id="marginTop" class="font-mono font-bold"></span>
@@ -158,9 +275,9 @@
                     </div>
                 </div>
 
-                <div class="bg-green-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-green-800">边距比例（相对于卡片宽/高）</h3>
-                    <div class="space-y-2 text-sm">
+                <div class="bg-green-50 p-3 sm:p-4 rounded-lg">
+                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-green-800">边距比例（相对于卡片宽/高）</h3>
+                    <div class="space-y-2 text-xs sm:text-sm">
                         <div class="flex justify-between">
                             <span>上边距比例:</span>
                             <span id="ratioTop" class="font-mono font-bold"></span>
@@ -184,9 +301,9 @@
                     </div>
                 </div>
 
-                <div class="bg-purple-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-purple-800">外边框尺寸（矫正后）</h3>
-                    <div class="space-y-2 text-sm">
+                <div class="bg-purple-50 p-3 sm:p-4 rounded-lg">
+                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-purple-800">外边框尺寸（矫正后）</h3>
+                    <div class="space-y-2 text-xs sm:text-sm">
                         <div class="flex justify-between">
                             <span>宽度:</span>
                             <span id="outerWidth" class="font-mono font-bold"></span>
@@ -202,9 +319,9 @@
                     </div>
                 </div>
 
-                <div class="bg-orange-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-orange-800">内边框尺寸（矫正后）</h3>
-                    <div class="space-y-2 text-sm">
+                <div class="bg-orange-50 p-3 sm:p-4 rounded-lg">
+                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-orange-800">内边框尺寸（矫正后）</h3>
+                    <div class="space-y-2 text-xs sm:text-sm">
                         <div class="flex justify-between">
                             <span>宽度:</span>
                             <span id="innerWidth" class="font-mono font-bold"></span>
@@ -243,6 +360,9 @@
         const magnifier = document.getElementById('magnifier');
         const magnifierCanvas = document.getElementById('magnifierCanvas');
         const magnifierCtx = magnifierCanvas.getContext('2d');
+        const centeringOverlay = document.getElementById('centeringOverlay');
+        const centeringLR = document.getElementById('centeringLR');
+        const centeringTB = document.getElementById('centeringTB');
 
         let image = null;
         let outerPoints = [];
@@ -251,9 +371,10 @@
         let draggedMarker = null;
         let draggedIndex = -1;
         let draggedType = '';
+        let canvasScale = 1;
 
         const ZOOM_LEVEL = 2;
-        const MAGNIFIER_SIZE = 150;
+        const MAGNIFIER_SIZE = window.innerWidth < 768 ? 100 : 120;
 
         magnifierCanvas.width = MAGNIFIER_SIZE * 2;
         magnifierCanvas.height = MAGNIFIER_SIZE * 2;
@@ -265,10 +386,10 @@
                 reader.onload = (event) => {
                     image = new Image();
                     image.onload = () => {
-                        const maxWidth = 800;
-                        const scale = Math.min(1, maxWidth / image.width);
-                        canvas.width = image.width * scale;
-                        canvas.height = image.height * scale;
+                        const maxWidth = window.innerWidth < 768 ? window.innerWidth - 32 : 800;
+                        canvasScale = Math.min(1, maxWidth / image.width);
+                        canvas.width = image.width * canvasScale;
+                        canvas.height = image.height * canvasScale;
                         
                         initializePoints();
                         drawCanvas();
@@ -362,27 +483,47 @@
         function addMarker(x, y, type, index) {
             const marker = document.createElement('div');
             marker.className = `marker ${type}-marker`;
-            marker.style.left = x + 'px';
-            marker.style.top = y + 'px';
+            
+            const rect = canvas.getBoundingClientRect();
+            const displayScale = rect.width / canvas.width;
+            
+            marker.style.left = (x * displayScale) + 'px';
+            marker.style.top = (y * displayScale) + 'px';
             marker.dataset.type = type;
             marker.dataset.index = index;
             
             marker.addEventListener('mousedown', startDrag);
+            marker.addEventListener('touchstart', startDrag, {passive: false});
             
             canvasContainer.appendChild(marker);
             markers.push(marker);
         }
 
         function startDrag(e) {
+            e.preventDefault();
             draggedMarker = e.target;
             draggedType = draggedMarker.dataset.type;
             draggedIndex = parseInt(draggedMarker.dataset.index);
-            e.preventDefault();
             
             magnifier.style.display = 'block';
             
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', drag, {passive: false});
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function getEventPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top,
+                screenX: clientX,
+                screenY: clientY
+            };
         }
 
         function updateMagnifier(canvasX, canvasY, screenX, screenY) {
@@ -407,8 +548,8 @@
                 magnifierCanvas.height
             );
 
-            const offsetX = 30;
-            const offsetY = 30;
+            const offsetX = window.innerWidth < 768 ? -60 : 30;
+            const offsetY = window.innerWidth < 768 ? -140 : 30;
             magnifier.style.left = (screenX + offsetX) + 'px';
             magnifier.style.top = (screenY + offsetY) + 'px';
 
@@ -417,13 +558,20 @@
 
         function drag(e) {
             if (!draggedMarker) return;
+            e.preventDefault();
             
             const rect = canvas.getBoundingClientRect();
-            const x = Math.max(0, Math.min(e.clientX - rect.left, canvas.width));
-            const y = Math.max(0, Math.min(e.clientY - rect.top, canvas.height));
+            const pos = getEventPosition(e);
             
-            draggedMarker.style.left = x + 'px';
-            draggedMarker.style.top = y + 'px';
+            const displayScale = rect.width / canvas.width;
+            const canvasX = pos.x / displayScale;
+            const canvasY = pos.y / displayScale;
+            
+            const x = Math.max(0, Math.min(canvasX, canvas.width));
+            const y = Math.max(0, Math.min(canvasY, canvas.height));
+            
+            draggedMarker.style.left = (x * displayScale) + 'px';
+            draggedMarker.style.top = (y * displayScale) + 'px';
             
             if (draggedType === 'outer') {
                 outerPoints[draggedIndex] = {x, y};
@@ -434,16 +582,21 @@
             drawCanvas();
             calculateMargins();
 
-            updateMagnifier(x, y, e.clientX, e.clientY);
+            updateMagnifier(x, y, pos.screenX, pos.screenY);
         }
 
-        function stopDrag() {
+        function stopDrag(e) {
+            if (draggedMarker) {
+                e.preventDefault();
+            }
             draggedMarker = null;
             draggedIndex = -1;
             draggedType = '';
             magnifier.style.display = 'none';
             document.removeEventListener('mousemove', drag);
             document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', drag);
+            document.removeEventListener('touchend', stopDrag);
         }
 
         resetBtn.addEventListener('click', () => {
@@ -455,12 +608,29 @@
             }
         });
 
+        window.addEventListener('resize', () => {
+            if (image) {
+                const maxWidth = window.innerWidth < 768 ? window.innerWidth - 32 : 800;
+                const newScale = Math.min(1, maxWidth / image.width);
+                if (Math.abs(newScale - canvasScale) > 0.01) {
+                    const scaleRatio = newScale / canvasScale;
+                    canvasScale = newScale;
+                    canvas.width = image.width * canvasScale;
+                    canvas.height = image.height * canvasScale;
+                    
+                    outerPoints = outerPoints.map(p => ({x: p.x * scaleRatio, y: p.y * scaleRatio}));
+                    innerPoints = innerPoints.map(p => ({x: p.x * scaleRatio, y: p.y * scaleRatio}));
+                    
+                    drawCanvas();
+                    createMarkers();
+                    calculateMargins();
+                }
+            }
+        });
+
         // ===== 透视变换核心算法 =====
         
         function getPerspectiveTransform(src, dst) {
-            // 计算从src四边形到dst矩形的透视变换矩阵
-            // src和dst都是4个点的数组 [{x, y}, ...]
-            
             const A = [];
             const b = [];
             
@@ -477,7 +647,6 @@
                 b.push(dy);
             }
             
-            // 求解线性方程组
             const h = solveLinearSystem(A, b);
             h.push(1);
             
@@ -485,13 +654,10 @@
         }
         
         function solveLinearSystem(A, b) {
-            // 使用高斯消元法求解Ax=b
             const n = A.length;
             const augmented = A.map((row, i) => [...row, b[i]]);
             
-            // 前向消元
             for (let i = 0; i < n; i++) {
-                // 找主元
                 let maxRow = i;
                 for (let k = i + 1; k < n; k++) {
                     if (Math.abs(augmented[k][i]) > Math.abs(augmented[maxRow][i])) {
@@ -500,7 +666,6 @@
                 }
                 [augmented[i], augmented[maxRow]] = [augmented[maxRow], augmented[i]];
                 
-                // 消元
                 for (let k = i + 1; k < n; k++) {
                     const factor = augmented[k][i] / augmented[i][i];
                     for (let j = i; j <= n; j++) {
@@ -509,7 +674,6 @@
                 }
             }
             
-            // 回代
             const x = new Array(n);
             for (let i = n - 1; i >= 0; i--) {
                 x[i] = augmented[i][n];
@@ -523,7 +687,6 @@
         }
         
         function applyPerspectiveTransform(point, matrix) {
-            // 应用透视变换矩阵到点
             const x = point.x;
             const y = point.y;
             
@@ -539,11 +702,9 @@
         }
 
         function calculateMargins() {
-            // 计算外边框的实际宽高（通过透视变换）
             const outerWidth = (distance(outerPoints[0], outerPoints[1]) + distance(outerPoints[2], outerPoints[3])) / 2;
             const outerHeight = (distance(outerPoints[0], outerPoints[3]) + distance(outerPoints[1], outerPoints[2])) / 2;
             
-            // 定义矫正后的矩形（标准矩形）
             const rectifiedOuter = [
                 {x: 0, y: 0},
                 {x: outerWidth, y: 0},
@@ -551,25 +712,20 @@
                 {x: 0, y: outerHeight}
             ];
             
-            // 计算透视变换矩阵
             const transformMatrix = getPerspectiveTransform(outerPoints, rectifiedOuter);
             
-            // 将内边框点变换到矫正空间
             const rectifiedInner = innerPoints.map(p => applyPerspectiveTransform(p, transformMatrix));
             
-            // 在矫正空间中计算内边框尺寸
             const innerWidth = (distance(rectifiedInner[0], rectifiedInner[1]) + 
                                distance(rectifiedInner[2], rectifiedInner[3])) / 2;
             const innerHeight = (distance(rectifiedInner[0], rectifiedInner[3]) + 
                                 distance(rectifiedInner[1], rectifiedInner[2])) / 2;
             
-            // 计算边距（矫正空间中）
             const marginTop = (rectifiedInner[0].y + rectifiedInner[1].y) / 2;
             const marginBottom = (outerHeight - (rectifiedInner[2].y + rectifiedInner[3].y) / 2);
             const marginLeft = (rectifiedInner[0].x + rectifiedInner[3].x) / 2;
             const marginRight = (outerWidth - (rectifiedInner[1].x + rectifiedInner[2].x) / 2);
             
-            // 计算比例
             const ratioTop = (marginTop / outerHeight * 100).toFixed(2);
             const ratioBottom = (marginBottom / outerHeight * 100).toFixed(2);
             const ratioLeft = (marginLeft / outerWidth * 100).toFixed(2);
@@ -579,7 +735,9 @@
             const ratioAvg = ((parseFloat(ratioTop) + parseFloat(ratioBottom) + 
                              parseFloat(ratioLeft) + parseFloat(ratioRight)) / 4).toFixed(2);
 
-            // 显示结果
+            // 更新 Centering 覆层显示
+            updateCenteringOverlay(ratioLeft, ratioRight, ratioTop, ratioBottom);
+
             document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)} px`;
             document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)} px`;
             document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)} px`;
@@ -601,6 +759,28 @@
             document.getElementById('innerRatio').textContent = `${(innerWidth / innerHeight).toFixed(3)}`;
 
             resultPanel.classList.remove('hidden');
+        }
+
+        function updateCenteringOverlay(left, right, top, bottom) {
+            // 计算 Card Centering 格式
+            const leftNum = parseFloat(left);
+            const rightNum = parseFloat(right);
+            const topNum = parseFloat(top);
+            const bottomNum = parseFloat(bottom);
+            
+            // 归一化为100的比例
+            const totalLR = leftNum + rightNum;
+            const totalTB = topNum + bottomNum;
+            
+            const leftCentering = Math.round((leftNum / totalLR) * 100);
+            const rightCentering = Math.round((rightNum / totalLR) * 100);
+            const topCentering = Math.round((topNum / totalTB) * 100);
+            const bottomCentering = Math.round((bottomNum / totalTB) * 100);
+            
+            centeringLR.textContent = `${leftCentering}/${rightCentering}`;
+            centeringTB.textContent = `${topCentering}/${bottomCentering}`;
+            
+            centeringOverlay.style.display = 'block';
         }
     </script>
 <script>window.parent.postMessage({ action: "ready" }, "*"); 
