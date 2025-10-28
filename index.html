@@ -7,11 +7,20 @@
     <title>游戏卡片边距比例计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             touch-action: none;
             -webkit-user-select: none;
             user-select: none;
             overscroll-behavior: none;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
         }
         
         .marker {
@@ -33,17 +42,24 @@
             opacity: 0.15;
         }
         
-        .outer-marker { background-color: #ef4444; }
-        .inner-marker { background-color: #3b82f6; }
+        .outer-marker { 
+            background-color: rgba(239, 68, 68, 0.2);
+            border-color: #ef4444;
+        }
+        
+        .inner-marker { 
+            background-color: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+        }
         
         .canvas-wrapper {
-            position: relative;
-            width: 100%;
-            height: 600px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
             overflow: hidden;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            background: #f9fafb;
+            background: #1f2937;
             touch-action: none;
         }
         
@@ -66,48 +82,97 @@
         
         .centering-overlay {
             position: absolute;
-            top: 10px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.95));
             color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
+            padding: 16px 32px;
+            border-radius: 16px;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             z-index: 20;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.15);
             white-space: nowrap;
             pointer-events: none;
         }
         
         .centering-text {
             display: flex;
-            gap: 16px;
+            gap: 24px;
             align-items: center;
-            font-size: 15px;
+            font-size: 20px;
         }
         
         .centering-section {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 8px;
         }
         
         .centering-label {
             color: #a0a0a0;
-            font-size: 13px;
+            font-size: 16px;
         }
         
         .centering-value {
             color: #4ade80;
-            font-size: 16px;
+            font-size: 22px;
         }
         
         .centering-separator {
             color: #666;
+            font-size: 20px;
+        }
+        
+        .top-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 20;
+        }
+        
+        .control-btn {
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
         }
         
         .zoom-controls {
@@ -116,26 +181,33 @@
             right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             z-index: 15;
         }
         
         .zoom-btn {
-            width: 48px;
-            height: 48px;
-            background: rgba(0, 0, 0, 0.8);
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.85);
             color: white;
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: bold;
             cursor: pointer;
             user-select: none;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.95);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
         }
         
         .zoom-btn:active {
@@ -146,16 +218,17 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
+            padding: 10px 20px;
+            border-radius: 24px;
             font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             z-index: 15;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(12px);
             border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
         }
         
         .magnifier {
@@ -219,201 +292,153 @@
             box-shadow: 0 0 2px rgba(255,255,255,0.8);
         }
         
+        .result-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 16px;
+            z-index: 20;
+            max-width: 90vw;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            color: white;
+            font-size: 12px;
+        }
+        
+        .result-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .result-item h3 {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            opacity: 0.7;
+        }
+        
+        .result-item .value {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
         @media (max-width: 768px) {
             .marker {
-                width: 32px;
-                height: 32px;
+                width: 36px;
+                height: 36px;
                 border: 4px solid white;
             }
             
-            .canvas-wrapper {
-                height: 400px;
-            }
-            
             .centering-text {
-                gap: 12px;
-                font-size: 13px;
+                gap: 16px;
+                font-size: 18px;
             }
             
             .centering-label {
-                font-size: 11px;
-            }
-            
-            .centering-value {
                 font-size: 14px;
             }
             
+            .centering-value {
+                font-size: 20px;
+            }
+            
             .centering-overlay {
-                padding: 10px 16px;
+                padding: 14px 24px;
+                top: 15px;
+            }
+            
+            .control-btn {
+                width: 52px;
+                height: 52px;
+                font-size: 22px;
+            }
+            
+            .zoom-btn {
+                width: 52px;
+                height: 52px;
+                font-size: 26px;
+            }
+            
+            .result-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-2 sm:p-8">
-    <div class="max-w-6xl mx-auto">
-        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">游戏卡片居中度计算器</h1>
-            <p class="text-sm sm:text-base text-gray-600 mb-4">Card Centering - 上传卡片照片，测量边距比例，评估居中度（支持透视角度拍摄）</p>
-            
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">上传卡片照片</label>
-                <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-            </div>
-
-            <div class="grid grid-cols-1 gap-4 mb-4">
-                <div class="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-                    <h3 class="text-base sm:text-lg font-semibold mb-2 text-blue-800">💡 什么是 Card Centering？</h3>
-                    <p class="text-xs sm:text-sm text-gray-700 mb-2">
-                        卡片居中度（Centering）是评估收藏卡品相的重要指标，表示卡面设计在边框内的居中程度。
-                    </p>
-                    <p class="text-xs sm:text-sm text-gray-700">
-                        完美居中的卡片表示为 <strong>"50/50"</strong>（左/右或上/下边距相等），
-                        偏心的卡片可能显示为 <strong>"60/40"</strong> 或 <strong>"70/30"</strong>。
-                        居中度越好，卡片评级和价值越高。
-                    </p>
-                </div>
-                
-                <div>
-                    <h3 class="text-base sm:text-lg font-semibold mb-2">操作说明：</h3>
-                    <ul class="list-disc list-inside text-xs sm:text-sm text-gray-700 space-y-1">
-                        <li>上传图片后自动生成8个角点和8条边</li>
-                        <li><span class="text-red-500 font-bold">红色</span>代表外边框（卡片物理边缘）</li>
-                        <li><span class="text-blue-500 font-bold">蓝色</span>代表内边框（设计边缘）</li>
-                        <li class="hidden sm:list-item"><strong>电脑端</strong>：拖动角点精确调整，拖动边线整体移动，拖动角点时显示放大镜</li>
-                        <li class="sm:hidden"><strong>手机端</strong>：双指缩放和平移画布，单指拖动角点和边线</li>
-                        <li>支持任意角度的边框（透视拍摄）</li>
-                        <li>图片上方实时显示 Centering 数据</li>
-                    </ul>
+<body>
+    <div class="canvas-wrapper" id="canvasWrapper">
+        <div class="canvas-container" id="canvasContainer">
+            <!-- Centering 覆层 -->
+            <div id="centeringOverlay" class="centering-overlay" style="display: none;">
+                <div class="centering-text">
+                    <div class="centering-section">
+                        <span class="centering-label">L|R</span>
+                        <span class="centering-value" id="centeringLR">--/--</span>
+                    </div>
+                    <span class="centering-separator">•</span>
+                    <div class="centering-section">
+                        <span class="centering-label">T|B</span>
+                        <span class="centering-value" id="centeringTB">--/--</span>
+                    </div>
                 </div>
             </div>
-
-            <button id="resetBtn" class="bg-gray-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-gray-600 transition mb-4 w-full sm:w-auto">
-                重置到默认位置
-            </button>
+            <canvas id="canvas"></canvas>
         </div>
-
-        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
-            <div class="canvas-wrapper" id="canvasWrapper">
-                <div class="canvas-container" id="canvasContainer">
-                    <!-- Centering 覆层 -->
-                    <div id="centeringOverlay" class="centering-overlay" style="display: none;">
-                        <div class="centering-text">
-                            <div class="centering-section">
-                                <span class="centering-label">L|R</span>
-                                <span class="centering-value" id="centeringLR">--/--</span>
-                            </div>
-                            <span class="centering-separator">•</span>
-                            <div class="centering-section">
-                                <span class="centering-label">T|B</span>
-                                <span class="centering-value" id="centeringTB">--/--</span>
-                            </div>
-                        </div>
-                    </div>
-                    <canvas id="canvas"></canvas>
-                </div>
-                
-                <!-- 缩放指示器 -->
-                <div id="zoomIndicator" class="zoom-indicator" style="display: none;">100%</div>
-                
-                <!-- 缩放控制按钮（仅移动端显示） -->
-                <div class="zoom-controls sm:hidden" id="zoomControls" style="display: none;">
-                    <div class="zoom-btn" id="zoomInBtn">+</div>
-                    <div class="zoom-btn" id="zoomOutBtn">−</div>
-                    <div class="zoom-btn" id="zoomResetBtn">⊙</div>
-                </div>
+        
+        <!-- 顶部控制按钮 -->
+        <div class="top-controls">
+            <div class="file-input-wrapper">
+                <input type="file" id="imageInput" accept="image/*">
+                <label for="imageInput" class="control-btn" title="上传图片">📷</label>
             </div>
+            <button id="resetBtn" class="control-btn" title="重置">🔄</button>
         </div>
-
-        <div id="resultPanel" class="bg-white rounded-lg shadow-lg p-4 sm:p-6 hidden">
-            <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">计算结果（透视矫正后）</h2>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div class="bg-blue-50 p-3 sm:p-4 rounded-lg">
-                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-blue-800">边距尺寸（矫正后像素）</h3>
-                    <div class="space-y-2 text-xs sm:text-sm">
-                        <div class="flex justify-between">
-                            <span>上边距:</span>
-                            <span id="marginTop" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>下边距:</span>
-                            <span id="marginBottom" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>左边距:</span>
-                            <span id="marginLeft" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>右边距:</span>
-                            <span id="marginRight" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between pt-2 border-t border-blue-200">
-                            <span>平均边距:</span>
-                            <span id="marginAvg" class="font-mono font-bold text-blue-600"></span>
-                        </div>
-                    </div>
+        
+        <!-- 缩放指示器 -->
+        <div id="zoomIndicator" class="zoom-indicator" style="display: none;">100%</div>
+        
+        <!-- 缩放控制按钮（仅移动端显示） -->
+        <div class="zoom-controls sm:hidden" id="zoomControls" style="display: none;">
+            <div class="zoom-btn" id="zoomInBtn">+</div>
+            <div class="zoom-btn" id="zoomOutBtn">−</div>
+            <div class="zoom-btn" id="zoomResetBtn">⊙</div>
+        </div>
+        
+        <!-- 结果面板 -->
+        <div id="resultPanel" class="result-panel" style="display: none;">
+            <div class="result-grid">
+                <div class="result-item">
+                    <h3>上边距</h3>
+                    <div class="value" id="marginTop">--</div>
+                    <div class="value" id="ratioTop">--</div>
                 </div>
-
-                <div class="bg-green-50 p-3 sm:p-4 rounded-lg">
-                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-green-800">边距比例（相对于卡片宽/高）</h3>
-                    <div class="space-y-2 text-xs sm:text-sm">
-                        <div class="flex justify-between">
-                            <span>上边距比例:</span>
-                            <span id="ratioTop" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>下边距比例:</span>
-                            <span id="ratioBottom" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>左边距比例:</span>
-                            <span id="ratioLeft" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>右边距比例:</span>
-                            <span id="ratioRight" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between pt-2 border-t border-green-200">
-                            <span>平均比例:</span>
-                            <span id="ratioAvg" class="font-mono font-bold text-green-600"></span>
-                        </div>
-                    </div>
+                <div class="result-item">
+                    <h3>下边距</h3>
+                    <div class="value" id="marginBottom">--</div>
+                    <div class="value" id="ratioBottom">--</div>
                 </div>
-
-                <div class="bg-purple-50 p-3 sm:p-4 rounded-lg">
-                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-purple-800">外边框尺寸（矫正后）</h3>
-                    <div class="space-y-2 text-xs sm:text-sm">
-                        <div class="flex justify-between">
-                            <span>宽度:</span>
-                            <span id="outerWidth" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>高度:</span>
-                            <span id="outerHeight" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>宽高比:</span>
-                            <span id="outerRatio" class="font-mono font-bold"></span>
-                        </div>
-                    </div>
+                <div class="result-item">
+                    <h3>左边距</h3>
+                    <div class="value" id="marginLeft">--</div>
+                    <div class="value" id="ratioLeft">--</div>
                 </div>
-
-                <div class="bg-orange-50 p-3 sm:p-4 rounded-lg">
-                    <h3 class="text-base sm:text-lg font-semibold mb-3 text-orange-800">内边框尺寸（矫正后）</h3>
-                    <div class="space-y-2 text-xs sm:text-sm">
-                        <div class="flex justify-between">
-                            <span>宽度:</span>
-                            <span id="innerWidth" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>高度:</span>
-                            <span id="innerHeight" class="font-mono font-bold"></span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>宽高比:</span>
-                            <span id="innerRatio" class="font-mono font-bold"></span>
-                        </div>
-                    </div>
+                <div class="result-item">
+                    <h3>右边距</h3>
+                    <div class="value" id="marginRight">--</div>
+                    <div class="value" id="ratioRight">--</div>
                 </div>
             </div>
         </div>
@@ -1197,34 +1222,20 @@
             const ratioBottom = (marginBottom / outerHeight * 100).toFixed(2);
             const ratioLeft = (marginLeft / outerWidth * 100).toFixed(2);
             const ratioRight = (marginRight / outerWidth * 100).toFixed(2);
-            
-            const marginAvg = (marginTop + marginBottom + marginLeft + marginRight) / 4;
-            const ratioAvg = ((parseFloat(ratioTop) + parseFloat(ratioBottom) + 
-                             parseFloat(ratioLeft) + parseFloat(ratioRight)) / 4).toFixed(2);
 
             updateCenteringOverlay(ratioLeft, ratioRight, ratioTop, ratioBottom);
 
-            document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)} px`;
-            document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)} px`;
-            document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)} px`;
-            document.getElementById('marginRight').textContent = `${marginRight.toFixed(1)} px`;
-            document.getElementById('marginAvg').textContent = `${marginAvg.toFixed(1)} px`;
+            document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)}px`;
+            document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)}px`;
+            document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)}px`;
+            document.getElementById('marginRight').textContent = `${marginRight.toFixed(1)}px`;
 
             document.getElementById('ratioTop').textContent = `${ratioTop}%`;
             document.getElementById('ratioBottom').textContent = `${ratioBottom}%`;
             document.getElementById('ratioLeft').textContent = `${ratioLeft}%`;
             document.getElementById('ratioRight').textContent = `${ratioRight}%`;
-            document.getElementById('ratioAvg').textContent = `${ratioAvg}%`;
 
-            document.getElementById('outerWidth').textContent = `${outerWidth.toFixed(1)} px`;
-            document.getElementById('outerHeight').textContent = `${outerHeight.toFixed(1)} px`;
-            document.getElementById('outerRatio').textContent = `${(outerWidth / outerHeight).toFixed(3)}`;
-            
-            document.getElementById('innerWidth').textContent = `${innerWidth.toFixed(1)} px`;
-            document.getElementById('innerHeight').textContent = `${innerHeight.toFixed(1)} px`;
-            document.getElementById('innerRatio').textContent = `${(innerWidth / innerHeight).toFixed(3)}`;
-
-            resultPanel.classList.remove('hidden');
+            resultPanel.style.display = 'block';
         }
 
         function updateCenteringOverlay(left, right, top, bottom) {
@@ -1247,29 +1258,5 @@
             centeringOverlay.style.display = 'block';
         }
     </script>
-<script>window.parent.postMessage({ action: "ready" }, "*"); 
- 
-window.console = new Proxy(console, {
-  get(target, prop) {
-    if (['log', 'warn', 'error'].includes(prop)) {
-      return new Proxy(target[prop], {
-        apply(fn, thisArg, args) {
-          fn.apply(thisArg, args);
-          window.parent.postMessage({ action: 'console', 
-            type: prop, 
-            args: args.map((arg) => {
-              try {
-                return JSON.stringify(arg).replace(/^["']|["']$/g, '');
-              } catch (e) {
-                return arg;
-              }
-            }) 
-          }, '*');
-        }
-      });
-    }
-    return target[prop];
-  }
-});
-</script></body>
+</body>
 </html>
