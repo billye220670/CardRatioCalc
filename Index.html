@@ -1,0 +1,529 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏卡片边距比例计算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .marker {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            transform: translate(-50%, -50%);
+            cursor: move;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .outer-marker { background-color: #ef4444; }
+        .inner-marker { background-color: #3b82f6; }
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        .magnifier {
+            position: fixed;
+            width: 150px;
+            height: 150px;
+            border: 3px solid #333;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: none;
+            overflow: hidden;
+        }
+        .magnifier canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+        }
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .crosshair-line-h {
+            position: absolute;
+            width: 30px;
+            height: 2px;
+            background: #ff0000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 2px rgba(255,255,255,0.8);
+        }
+        .crosshair-line-v {
+            position: absolute;
+            width: 2px;
+            height: 30px;
+            background: #ff0000;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 2px rgba(255,255,255,0.8);
+        }
+        .crosshair-circle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 2px rgba(255,255,255,0.8);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">游戏卡片边距比例计算器</h1>
+            <p class="text-gray-600 mb-4">上传卡片照片，拖动角点调整内外边框位置，自动计算边距比例</p>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">上传卡片照片</label>
+                <input type="file" id="imageInput" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">操作说明：</h3>
+                    <ul class="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        <li>上传图片后自动生成8个角点</li>
+                        <li><span class="text-red-500 font-bold">红色点</span>代表外边框角点（左上、右上、右下、左下）</li>
+                        <li><span class="text-blue-500 font-bold">蓝色点</span>代表内边框角点（左上、右上、右下、左下）</li>
+                        <li>拖动任意角点调整位置</li>
+                        <li>拖动时会显示放大镜和准心辅助精确定位</li>
+                        <li>半透明黄色区域显示边距范围</li>
+                        <li>实时显示计算结果</li>
+                    </ul>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-2">提示：</h3>
+                    <p class="text-sm text-gray-600">系统会根据图片尺寸自动预设边距位置（约10%），您可以根据实际卡片拖动调整到精确位置。拖动时放大镜会显示局部放大的图像，方便精确对齐。</p>
+                </div>
+            </div>
+
+            <button id="resetBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition mb-4">
+                重置到默认位置
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="canvas"></canvas>
+            </div>
+        </div>
+
+        <div id="resultPanel" class="bg-white rounded-lg shadow-lg p-6 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">计算结果</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3 text-blue-800">边距尺寸（像素）</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>上边距:</span>
+                            <span id="marginTop" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>下边距:</span>
+                            <span id="marginBottom" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>左边距:</span>
+                            <span id="marginLeft" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>右边距:</span>
+                            <span id="marginRight" class="font-mono font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3 text-green-800">边距比例（相对于卡片宽/高）</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>上边距比例:</span>
+                            <span id="ratioTop" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>下边距比例:</span>
+                            <span id="ratioBottom" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>左边距比例:</span>
+                            <span id="ratioLeft" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>右边距比例:</span>
+                            <span id="ratioRight" class="font-mono font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3 text-purple-800">外边框尺寸</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>宽度:</span>
+                            <span id="outerWidth" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>高度:</span>
+                            <span id="outerHeight" class="font-mono font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-orange-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3 text-orange-800">内边框尺寸</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>宽度:</span>
+                            <span id="innerWidth" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>高度:</span>
+                            <span id="innerHeight" class="font-mono font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 放大镜 -->
+    <div id="magnifier" class="magnifier">
+        <canvas id="magnifierCanvas"></canvas>
+        <div class="crosshair">
+            <div class="crosshair-line-h"></div>
+            <div class="crosshair-line-v"></div>
+            <div class="crosshair-circle"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const imageInput = document.getElementById('imageInput');
+        const resetBtn = document.getElementById('resetBtn');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const resultPanel = document.getElementById('resultPanel');
+        const magnifier = document.getElementById('magnifier');
+        const magnifierCanvas = document.getElementById('magnifierCanvas');
+        const magnifierCtx = magnifierCanvas.getContext('2d');
+
+        let image = null;
+        let outerPoints = [];
+        let innerPoints = [];
+        let markers = [];
+        let draggedMarker = null;
+        let draggedIndex = -1;
+        let draggedType = '';
+
+        const ZOOM_LEVEL = 2; // 放大倍数改为2倍
+        const MAGNIFIER_SIZE = 150;
+
+        magnifierCanvas.width = MAGNIFIER_SIZE * 2;
+        magnifierCanvas.height = MAGNIFIER_SIZE * 2;
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    image = new Image();
+                    image.onload = () => {
+                        const maxWidth = 800;
+                        const scale = Math.min(1, maxWidth / image.width);
+                        canvas.width = image.width * scale;
+                        canvas.height = image.height * scale;
+                        
+                        initializePoints();
+                        drawCanvas();
+                        createMarkers();
+                        calculateMargins();
+                    };
+                    image.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function initializePoints() {
+            const margin = 0.1; // 10% 默认边距
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // 外边框角点（左上、右上、右下、左下）
+            outerPoints = [
+                {x: 0, y: 0},
+                {x: w, y: 0},
+                {x: w, y: h},
+                {x: 0, y: h}
+            ];
+
+            // 内边框角点（左上、右上、右下、左下）
+            innerPoints = [
+                {x: w * margin, y: h * margin},
+                {x: w * (1 - margin), y: h * margin},
+                {x: w * (1 - margin), y: h * (1 - margin)},
+                {x: w * margin, y: h * (1 - margin)}
+            ];
+        }
+
+        function drawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+            // 绘制边距区域（半透明填充）
+            ctx.save();
+            
+            // 创建外边框路径
+            ctx.beginPath();
+            ctx.moveTo(outerPoints[0].x, outerPoints[0].y);
+            for (let i = 1; i < outerPoints.length; i++) {
+                ctx.lineTo(outerPoints[i].x, outerPoints[i].y);
+            }
+            ctx.closePath();
+            
+            // 创建内边框路径（逆时针，用于裁剪）
+            ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
+            for (let i = innerPoints.length - 1; i >= 0; i--) {
+                ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
+            }
+            ctx.closePath();
+            
+            // 填充边距区域
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.4)';
+            ctx.fill();
+            
+            ctx.restore();
+
+            // 绘制外边框线条
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(outerPoints[0].x, outerPoints[0].y);
+            for (let i = 1; i < outerPoints.length; i++) {
+                ctx.lineTo(outerPoints[i].x, outerPoints[i].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+
+            // 绘制内边框线条
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
+            for (let i = 1; i < innerPoints.length; i++) {
+                ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function createMarkers() {
+            // 清除现有标记
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
+            // 创建外边框标记
+            outerPoints.forEach((point, index) => {
+                addMarker(point.x, point.y, 'outer', index);
+            });
+
+            // 创建内边框标记
+            innerPoints.forEach((point, index) => {
+                addMarker(point.x, point.y, 'inner', index);
+            });
+        }
+
+        function addMarker(x, y, type, index) {
+            const marker = document.createElement('div');
+            marker.className = `marker ${type}-marker`;
+            marker.style.left = x + 'px';
+            marker.style.top = y + 'px';
+            marker.dataset.type = type;
+            marker.dataset.index = index;
+            
+            marker.addEventListener('mousedown', startDrag);
+            
+            canvasContainer.appendChild(marker);
+            markers.push(marker);
+        }
+
+        function startDrag(e) {
+            draggedMarker = e.target;
+            draggedType = draggedMarker.dataset.type;
+            draggedIndex = parseInt(draggedMarker.dataset.index);
+            e.preventDefault();
+            
+            magnifier.style.display = 'block';
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function updateMagnifier(canvasX, canvasY, screenX, screenY) {
+            // 计算在原图上的坐标
+            const scaleX = image.width / canvas.width;
+            const scaleY = image.height / canvas.height;
+            const sourceX = canvasX * scaleX;
+            const sourceY = canvasY * scaleY;
+
+            // 放大镜显示的区域大小（在原图上）
+            const sourceSize = MAGNIFIER_SIZE / ZOOM_LEVEL;
+
+            // 清空放大镜画布
+            magnifierCtx.clearRect(0, 0, magnifierCanvas.width, magnifierCanvas.height);
+
+            // 绘制放大的图像
+            magnifierCtx.drawImage(
+                image,
+                sourceX - sourceSize / 2,
+                sourceY - sourceSize / 2,
+                sourceSize,
+                sourceSize,
+                0,
+                0,
+                magnifierCanvas.width,
+                magnifierCanvas.height
+            );
+
+            // 定位放大镜（在鼠标右下方）
+            const offsetX = 30;
+            const offsetY = 30;
+            magnifier.style.left = (screenX + offsetX) + 'px';
+            magnifier.style.top = (screenY + offsetY) + 'px';
+
+            // 变换放大镜画布使准心在中心
+            magnifierCanvas.style.transform = `translate(-50%, -50%)`;
+        }
+
+        function drag(e) {
+            if (!draggedMarker) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, canvas.width));
+            const y = Math.max(0, Math.min(e.clientY - rect.top, canvas.height));
+            
+            draggedMarker.style.left = x + 'px';
+            draggedMarker.style.top = y + 'px';
+            
+            if (draggedType === 'outer') {
+                outerPoints[draggedIndex] = {x, y};
+            } else {
+                innerPoints[draggedIndex] = {x, y};
+            }
+            
+            drawCanvas();
+            calculateMargins();
+
+            // 更新放大镜
+            updateMagnifier(x, y, e.clientX, e.clientY);
+        }
+
+        function stopDrag() {
+            draggedMarker = null;
+            draggedIndex = -1;
+            draggedType = '';
+            magnifier.style.display = 'none';
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        resetBtn.addEventListener('click', () => {
+            if (image) {
+                initializePoints();
+                drawCanvas();
+                createMarkers();
+                calculateMargins();
+            }
+        });
+
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        }
+
+        function calculateMargins() {
+            // 计算外边框尺寸
+            const outerWidth = (distance(outerPoints[0], outerPoints[1]) + distance(outerPoints[2], outerPoints[3])) / 2;
+            const outerHeight = (distance(outerPoints[0], outerPoints[3]) + distance(outerPoints[1], outerPoints[2])) / 2;
+
+            // 计算内边框尺寸
+            const innerWidth = (distance(innerPoints[0], innerPoints[1]) + distance(innerPoints[2], innerPoints[3])) / 2;
+            const innerHeight = (distance(innerPoints[0], innerPoints[3]) + distance(innerPoints[1], innerPoints[2])) / 2;
+
+            // 计算边距（像素）
+            const marginTop = (distance(outerPoints[0], innerPoints[0]) + distance(outerPoints[1], innerPoints[1])) / 2;
+            const marginBottom = (distance(outerPoints[3], innerPoints[3]) + distance(outerPoints[2], innerPoints[2])) / 2;
+            const marginLeft = (distance(outerPoints[0], innerPoints[0]) + distance(outerPoints[3], innerPoints[3])) / 2;
+            const marginRight = (distance(outerPoints[1], innerPoints[1]) + distance(outerPoints[2], innerPoints[2])) / 2;
+
+            // 计算比例
+            const ratioTop = (marginTop / outerHeight * 100).toFixed(2);
+            const ratioBottom = (marginBottom / outerHeight * 100).toFixed(2);
+            const ratioLeft = (marginLeft / outerWidth * 100).toFixed(2);
+            const ratioRight = (marginRight / outerWidth * 100).toFixed(2);
+
+            // 显示结果
+            document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)} px`;
+            document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)} px`;
+            document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)} px`;
+            document.getElementById('marginRight').textContent = `${marginRight.toFixed(1)} px`;
+
+            document.getElementById('ratioTop').textContent = `${ratioTop}%`;
+            document.getElementById('ratioBottom').textContent = `${ratioBottom}%`;
+            document.getElementById('ratioLeft').textContent = `${ratioLeft}%`;
+            document.getElementById('ratioRight').textContent = `${ratioRight}%`;
+
+            document.getElementById('outerWidth').textContent = `${outerWidth.toFixed(1)} px`;
+            document.getElementById('outerHeight').textContent = `${outerHeight.toFixed(1)} px`;
+            document.getElementById('innerWidth').textContent = `${innerWidth.toFixed(1)} px`;
+            document.getElementById('innerHeight').textContent = `${innerHeight.toFixed(1)} px`;
+
+            resultPanel.classList.remove('hidden');
+        }
+    </script>
+<script>window.parent.postMessage({ action: "ready" }, "*"); 
+ 
+window.console = new Proxy(console, {
+  get(target, prop) {
+    if (['log', 'warn', 'error'].includes(prop)) {
+      return new Proxy(target[prop], {
+        apply(fn, thisArg, args) {
+          fn.apply(thisArg, args);
+          window.parent.postMessage({ action: 'console', 
+            type: prop, 
+            args: args.map((arg) => {
+              try {
+                return JSON.stringify(arg).replace(/^["']|["']$/g, '');
+              } catch (e) {
+                return arg;
+              }
+            }) 
+          }, '*');
+        }
+      });
+    }
+    return target[prop];
+  }
+});
+</script></body>
+</html>
