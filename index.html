@@ -91,7 +91,7 @@
     <div class="max-w-6xl mx-auto">
         <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">游戏卡片边距比例计算器</h1>
-            <p class="text-gray-600 mb-4">上传卡片照片，拖动角点调整内外边框位置，自动计算边距比例</p>
+            <p class="text-gray-600 mb-4">上传卡片照片，拖动角点调整内外边框位置，自动计算边距比例（支持透视角度拍摄）</p>
             
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">上传卡片照片</label>
@@ -108,12 +108,12 @@
                         <li>拖动任意角点调整位置</li>
                         <li>拖动时会显示放大镜和准心辅助精确定位</li>
                         <li>半透明黄色区域显示边距范围</li>
-                        <li>实时显示计算结果</li>
+                        <li>✨ <strong>支持透视角度拍摄</strong>，自动矫正计算</li>
                     </ul>
                 </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-2">提示：</h3>
-                    <p class="text-sm text-gray-600">系统会根据图片尺寸自动预设边距位置（约10%），您可以根据实际卡片拖动调整到精确位置。拖动时放大镜会显示局部放大的图像，方便精确对齐。</p>
+                <div class="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+                    <h3 class="text-lg font-semibold mb-2 text-blue-800">💡 透视矫正功能：</h3>
+                    <p class="text-sm text-gray-700">即使卡片是斜着拍摄的，系统也会通过透视变换矫正，计算出真实的边距比例。只需准确标记8个角点即可。</p>
                 </div>
             </div>
 
@@ -129,11 +129,11 @@
         </div>
 
         <div id="resultPanel" class="bg-white rounded-lg shadow-lg p-6 hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">计算结果</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">计算结果（透视矫正后）</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-blue-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-blue-800">边距尺寸（像素）</h3>
+                    <h3 class="text-lg font-semibold mb-3 text-blue-800">边距尺寸（矫正后像素）</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>上边距:</span>
@@ -150,6 +150,10 @@
                         <div class="flex justify-between">
                             <span>右边距:</span>
                             <span id="marginRight" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between pt-2 border-t border-blue-200">
+                            <span>平均边距:</span>
+                            <span id="marginAvg" class="font-mono font-bold text-blue-600"></span>
                         </div>
                     </div>
                 </div>
@@ -173,11 +177,15 @@
                             <span>右边距比例:</span>
                             <span id="ratioRight" class="font-mono font-bold"></span>
                         </div>
+                        <div class="flex justify-between pt-2 border-t border-green-200">
+                            <span>平均比例:</span>
+                            <span id="ratioAvg" class="font-mono font-bold text-green-600"></span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="bg-purple-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-purple-800">外边框尺寸</h3>
+                    <h3 class="text-lg font-semibold mb-3 text-purple-800">外边框尺寸（矫正后）</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>宽度:</span>
@@ -187,11 +195,15 @@
                             <span>高度:</span>
                             <span id="outerHeight" class="font-mono font-bold"></span>
                         </div>
+                        <div class="flex justify-between">
+                            <span>宽高比:</span>
+                            <span id="outerRatio" class="font-mono font-bold"></span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="bg-orange-50 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3 text-orange-800">内边框尺寸</h3>
+                    <h3 class="text-lg font-semibold mb-3 text-orange-800">内边框尺寸（矫正后）</h3>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>宽度:</span>
@@ -200,6 +212,10 @@
                         <div class="flex justify-between">
                             <span>高度:</span>
                             <span id="innerHeight" class="font-mono font-bold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>宽高比:</span>
+                            <span id="innerRatio" class="font-mono font-bold"></span>
                         </div>
                     </div>
                 </div>
@@ -236,7 +252,7 @@
         let draggedIndex = -1;
         let draggedType = '';
 
-        const ZOOM_LEVEL = 2; // 放大倍数改为2倍
+        const ZOOM_LEVEL = 2;
         const MAGNIFIER_SIZE = 150;
 
         magnifierCanvas.width = MAGNIFIER_SIZE * 2;
@@ -266,11 +282,10 @@
         });
 
         function initializePoints() {
-            const margin = 0.1; // 10% 默认边距
+            const margin = 0.1;
             const w = canvas.width;
             const h = canvas.height;
 
-            // 外边框角点（左上、右上、右下、左下）
             outerPoints = [
                 {x: 0, y: 0},
                 {x: w, y: 0},
@@ -278,7 +293,6 @@
                 {x: 0, y: h}
             ];
 
-            // 内边框角点（左上、右上、右下、左下）
             innerPoints = [
                 {x: w * margin, y: h * margin},
                 {x: w * (1 - margin), y: h * margin},
@@ -291,10 +305,8 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-            // 绘制边距区域（半透明填充）
             ctx.save();
             
-            // 创建外边框路径
             ctx.beginPath();
             ctx.moveTo(outerPoints[0].x, outerPoints[0].y);
             for (let i = 1; i < outerPoints.length; i++) {
@@ -302,20 +314,17 @@
             }
             ctx.closePath();
             
-            // 创建内边框路径（逆时针，用于裁剪）
             ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
             for (let i = innerPoints.length - 1; i >= 0; i--) {
                 ctx.lineTo(innerPoints[i].x, innerPoints[i].y);
             }
             ctx.closePath();
             
-            // 填充边距区域
             ctx.fillStyle = 'rgba(255, 200, 0, 0.4)';
             ctx.fill();
             
             ctx.restore();
 
-            // 绘制外边框线条
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -326,7 +335,6 @@
             ctx.closePath();
             ctx.stroke();
 
-            // 绘制内边框线条
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -339,16 +347,13 @@
         }
 
         function createMarkers() {
-            // 清除现有标记
             markers.forEach(marker => marker.remove());
             markers = [];
 
-            // 创建外边框标记
             outerPoints.forEach((point, index) => {
                 addMarker(point.x, point.y, 'outer', index);
             });
 
-            // 创建内边框标记
             innerPoints.forEach((point, index) => {
                 addMarker(point.x, point.y, 'inner', index);
             });
@@ -381,19 +386,15 @@
         }
 
         function updateMagnifier(canvasX, canvasY, screenX, screenY) {
-            // 计算在原图上的坐标
             const scaleX = image.width / canvas.width;
             const scaleY = image.height / canvas.height;
             const sourceX = canvasX * scaleX;
             const sourceY = canvasY * scaleY;
 
-            // 放大镜显示的区域大小（在原图上）
             const sourceSize = MAGNIFIER_SIZE / ZOOM_LEVEL;
 
-            // 清空放大镜画布
             magnifierCtx.clearRect(0, 0, magnifierCanvas.width, magnifierCanvas.height);
 
-            // 绘制放大的图像
             magnifierCtx.drawImage(
                 image,
                 sourceX - sourceSize / 2,
@@ -406,13 +407,11 @@
                 magnifierCanvas.height
             );
 
-            // 定位放大镜（在鼠标右下方）
             const offsetX = 30;
             const offsetY = 30;
             magnifier.style.left = (screenX + offsetX) + 'px';
             magnifier.style.top = (screenY + offsetY) + 'px';
 
-            // 变换放大镜画布使准心在中心
             magnifierCanvas.style.transform = `translate(-50%, -50%)`;
         }
 
@@ -435,7 +434,6 @@
             drawCanvas();
             calculateMargins();
 
-            // 更新放大镜
             updateMagnifier(x, y, e.clientX, e.clientY);
         }
 
@@ -457,46 +455,150 @@
             }
         });
 
+        // ===== 透视变换核心算法 =====
+        
+        function getPerspectiveTransform(src, dst) {
+            // 计算从src四边形到dst矩形的透视变换矩阵
+            // src和dst都是4个点的数组 [{x, y}, ...]
+            
+            const A = [];
+            const b = [];
+            
+            for (let i = 0; i < 4; i++) {
+                const sx = src[i].x;
+                const sy = src[i].y;
+                const dx = dst[i].x;
+                const dy = dst[i].y;
+                
+                A.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]);
+                b.push(dx);
+                
+                A.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]);
+                b.push(dy);
+            }
+            
+            // 求解线性方程组
+            const h = solveLinearSystem(A, b);
+            h.push(1);
+            
+            return h;
+        }
+        
+        function solveLinearSystem(A, b) {
+            // 使用高斯消元法求解Ax=b
+            const n = A.length;
+            const augmented = A.map((row, i) => [...row, b[i]]);
+            
+            // 前向消元
+            for (let i = 0; i < n; i++) {
+                // 找主元
+                let maxRow = i;
+                for (let k = i + 1; k < n; k++) {
+                    if (Math.abs(augmented[k][i]) > Math.abs(augmented[maxRow][i])) {
+                        maxRow = k;
+                    }
+                }
+                [augmented[i], augmented[maxRow]] = [augmented[maxRow], augmented[i]];
+                
+                // 消元
+                for (let k = i + 1; k < n; k++) {
+                    const factor = augmented[k][i] / augmented[i][i];
+                    for (let j = i; j <= n; j++) {
+                        augmented[k][j] -= factor * augmented[i][j];
+                    }
+                }
+            }
+            
+            // 回代
+            const x = new Array(n);
+            for (let i = n - 1; i >= 0; i--) {
+                x[i] = augmented[i][n];
+                for (let j = i + 1; j < n; j++) {
+                    x[i] -= augmented[i][j] * x[j];
+                }
+                x[i] /= augmented[i][i];
+            }
+            
+            return x;
+        }
+        
+        function applyPerspectiveTransform(point, matrix) {
+            // 应用透视变换矩阵到点
+            const x = point.x;
+            const y = point.y;
+            
+            const w = matrix[6] * x + matrix[7] * y + matrix[8];
+            const newX = (matrix[0] * x + matrix[1] * y + matrix[2]) / w;
+            const newY = (matrix[3] * x + matrix[4] * y + matrix[5]) / w;
+            
+            return {x: newX, y: newY};
+        }
+
         function distance(p1, p2) {
             return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
         }
 
         function calculateMargins() {
-            // 计算外边框尺寸
+            // 计算外边框的实际宽高（通过透视变换）
             const outerWidth = (distance(outerPoints[0], outerPoints[1]) + distance(outerPoints[2], outerPoints[3])) / 2;
             const outerHeight = (distance(outerPoints[0], outerPoints[3]) + distance(outerPoints[1], outerPoints[2])) / 2;
-
-            // 计算内边框尺寸
-            const innerWidth = (distance(innerPoints[0], innerPoints[1]) + distance(innerPoints[2], innerPoints[3])) / 2;
-            const innerHeight = (distance(innerPoints[0], innerPoints[3]) + distance(innerPoints[1], innerPoints[2])) / 2;
-
-            // 计算边距（像素）
-            const marginTop = (distance(outerPoints[0], innerPoints[0]) + distance(outerPoints[1], innerPoints[1])) / 2;
-            const marginBottom = (distance(outerPoints[3], innerPoints[3]) + distance(outerPoints[2], innerPoints[2])) / 2;
-            const marginLeft = (distance(outerPoints[0], innerPoints[0]) + distance(outerPoints[3], innerPoints[3])) / 2;
-            const marginRight = (distance(outerPoints[1], innerPoints[1]) + distance(outerPoints[2], innerPoints[2])) / 2;
-
+            
+            // 定义矫正后的矩形（标准矩形）
+            const rectifiedOuter = [
+                {x: 0, y: 0},
+                {x: outerWidth, y: 0},
+                {x: outerWidth, y: outerHeight},
+                {x: 0, y: outerHeight}
+            ];
+            
+            // 计算透视变换矩阵
+            const transformMatrix = getPerspectiveTransform(outerPoints, rectifiedOuter);
+            
+            // 将内边框点变换到矫正空间
+            const rectifiedInner = innerPoints.map(p => applyPerspectiveTransform(p, transformMatrix));
+            
+            // 在矫正空间中计算内边框尺寸
+            const innerWidth = (distance(rectifiedInner[0], rectifiedInner[1]) + 
+                               distance(rectifiedInner[2], rectifiedInner[3])) / 2;
+            const innerHeight = (distance(rectifiedInner[0], rectifiedInner[3]) + 
+                                distance(rectifiedInner[1], rectifiedInner[2])) / 2;
+            
+            // 计算边距（矫正空间中）
+            const marginTop = (rectifiedInner[0].y + rectifiedInner[1].y) / 2;
+            const marginBottom = (outerHeight - (rectifiedInner[2].y + rectifiedInner[3].y) / 2);
+            const marginLeft = (rectifiedInner[0].x + rectifiedInner[3].x) / 2;
+            const marginRight = (outerWidth - (rectifiedInner[1].x + rectifiedInner[2].x) / 2);
+            
             // 计算比例
             const ratioTop = (marginTop / outerHeight * 100).toFixed(2);
             const ratioBottom = (marginBottom / outerHeight * 100).toFixed(2);
             const ratioLeft = (marginLeft / outerWidth * 100).toFixed(2);
             const ratioRight = (marginRight / outerWidth * 100).toFixed(2);
+            
+            const marginAvg = (marginTop + marginBottom + marginLeft + marginRight) / 4;
+            const ratioAvg = ((parseFloat(ratioTop) + parseFloat(ratioBottom) + 
+                             parseFloat(ratioLeft) + parseFloat(ratioRight)) / 4).toFixed(2);
 
             // 显示结果
             document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)} px`;
             document.getElementById('marginBottom').textContent = `${marginBottom.toFixed(1)} px`;
             document.getElementById('marginLeft').textContent = `${marginLeft.toFixed(1)} px`;
             document.getElementById('marginRight').textContent = `${marginRight.toFixed(1)} px`;
+            document.getElementById('marginAvg').textContent = `${marginAvg.toFixed(1)} px`;
 
             document.getElementById('ratioTop').textContent = `${ratioTop}%`;
             document.getElementById('ratioBottom').textContent = `${ratioBottom}%`;
             document.getElementById('ratioLeft').textContent = `${ratioLeft}%`;
             document.getElementById('ratioRight').textContent = `${ratioRight}%`;
+            document.getElementById('ratioAvg').textContent = `${ratioAvg}%`;
 
             document.getElementById('outerWidth').textContent = `${outerWidth.toFixed(1)} px`;
             document.getElementById('outerHeight').textContent = `${outerHeight.toFixed(1)} px`;
+            document.getElementById('outerRatio').textContent = `${(outerWidth / outerHeight).toFixed(3)}`;
+            
             document.getElementById('innerWidth').textContent = `${innerWidth.toFixed(1)} px`;
             document.getElementById('innerHeight').textContent = `${innerHeight.toFixed(1)} px`;
+            document.getElementById('innerRatio').textContent = `${(innerWidth / innerHeight).toFixed(3)}`;
 
             resultPanel.classList.remove('hidden');
         }
