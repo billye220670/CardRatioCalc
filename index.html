@@ -397,10 +397,7 @@
         let touchState = {
             isPanning: false,
             isPinching: false,
-            lastMidpoint: null,
-            startDistance: 0,
-            lastDistance: 0,
-            currentTouches: []
+            lastTouches: [],  // 记录上一帧的所有触摸点
         };
 
         const isMobile = window.innerWidth < 768;
@@ -821,7 +818,7 @@
             magnifierCanvas.style.transform = `translate(-50%, -50%)`;
         }
 
-        // ===== iOS 风格双指缩放和平移 =====
+        // ===== iOS 风格双指缩放 + 平移 =====
         
         canvasWrapper.addEventListener('touchstart', handleWrapperTouchStart, {passive: false});
         canvasWrapper.addEventListener('touchmove', handleWrapperTouchMove, {passive: false});
@@ -849,27 +846,24 @@
                     e.preventDefault();
                     touchState.isPanning = true;
                     touchState.isPinching = false;
-                    touchState.lastMidpoint = {
-                        x: touch.clientX - wrapperRect.left,
-                        y: touch.clientY - wrapperRect.top
-                    };
+                    touchState.lastTouches = [{
+                        x: touch.clientX,
+                        y: touch.clientY
+                    }];
                 }
             } else if (e.touches.length === 2) {
-                // 双指：开始缩放
+                // 双指：开始缩放 + 平移
                 e.preventDefault();
+                touchState.isPinching = true;
+                touchState.isPanning = false;
+                
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
                 
-                touchState.isPinching = true;
-                touchState.isPanning = false;
-                touchState.startDistance = getDistance(touch1, touch2);
-                touchState.lastDistance = touchState.startDistance;
-                
-                const midpoint = getMidpoint(touch1, touch2);
-                touchState.lastMidpoint = {
-                    x: midpoint.x - wrapperRect.left,
-                    y: midpoint.y - wrapperRect.top
-                };
+                touchState.lastTouches = [
+                    { x: touch1.clientX, y: touch1.clientY },
+                    { x: touch2.clientX, y: touch2.clientY }
+                ];
             }
         }
 
@@ -885,52 +879,82 @@
                 // 单指平移
                 e.preventDefault();
                 const touch = e.touches[0];
-                const currentPos = {
-                    x: touch.clientX - wrapperRect.left,
-                    y: touch.clientY - wrapperRect.top
-                };
                 
-                const dx = currentPos.x - touchState.lastMidpoint.x;
-                const dy = currentPos.y - touchState.lastMidpoint.y;
+                const dx = touch.clientX - touchState.lastTouches[0].x;
+                const dy = touch.clientY - touchState.lastTouches[0].y;
                 
                 viewport.translateX += dx;
                 viewport.translateY += dy;
                 
                 applyViewportTransform();
                 
-                touchState.lastMidpoint = currentPos;
+                touchState.lastTouches = [{
+                    x: touch.clientX,
+                    y: touch.clientY
+                }];
                 
-            } else if (e.touches.length === 2 && touchState.isPinching) {
-                // 双指缩放 + 平移
+            } else if (e.touches.length === 2) {
+                // 双指：同时处理缩放和平移
                 e.preventDefault();
+                
                 const touch1 = e.touches[0];
                 const touch2 = e.touches[1];
                 
+                // 如果从单指切换到双指，初始化双指状态
+                if (!touchState.isPinching) {
+                    touchState.isPinching = true;
+                    touchState.isPanning = false;
+                    touchState.lastTouches = [
+                        { x: touch1.clientX, y: touch1.clientY },
+                        { x: touch2.clientX, y: touch2.clientY }
+                    ];
+                    return;
+                }
+                
+                // 计算当前状态
                 const currentDistance = getDistance(touch1, touch2);
                 const currentMidpoint = getMidpoint(touch1, touch2);
+                
+                // 计算上一帧状态
+                const lastTouch1 = touchState.lastTouches[0];
+                const lastTouch2 = touchState.lastTouches[1];
+                const lastDistance = Math.sqrt(
+                    Math.pow(lastTouch2.x - lastTouch1.x, 2) + 
+                    Math.pow(lastTouch2.y - lastTouch1.y, 2)
+                );
+                const lastMidpoint = {
+                    x: (lastTouch1.x + lastTouch2.x) / 2,
+                    y: (lastTouch1.y + lastTouch2.y) / 2
+                };
+                
+                // 转换为相对于 wrapper 的坐标
+                const lastMidpointLocal = {
+                    x: lastMidpoint.x - wrapperRect.left,
+                    y: lastMidpoint.y - wrapperRect.top
+                };
+                
+                // 1. 计算缩放中心点在 canvas 上的坐标
+                const canvasPoint = {
+                    x: (lastMidpointLocal.x - viewport.translateX) / viewport.scale,
+                    y: (lastMidpointLocal.y - viewport.translateY) / viewport.scale
+                };
+                
+                // 2. 应用缩放
+                const scaleDelta = currentDistance / lastDistance;
+                const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, viewport.scale * scaleDelta));
+                
+                viewport.scale = newScale;
+                viewport.translateX = lastMidpointLocal.x - canvasPoint.x * newScale;
+                viewport.translateY = lastMidpointLocal.y - canvasPoint.y * newScale;
+                
+                // 3. 应用平移（中心点移动）
                 const currentMidpointLocal = {
                     x: currentMidpoint.x - wrapperRect.left,
                     y: currentMidpoint.y - wrapperRect.top
                 };
                 
-                // 计算缩放中心点在 canvas 上的坐标
-                const canvasPoint = {
-                    x: (touchState.lastMidpoint.x - viewport.translateX) / viewport.scale,
-                    y: (touchState.lastMidpoint.y - viewport.translateY) / viewport.scale
-                };
-                
-                // 计算新的缩放比例
-                const scaleDelta = currentDistance / touchState.lastDistance;
-                const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, viewport.scale * scaleDelta));
-                
-                // 更新缩放，保持缩放中心点不变
-                viewport.scale = newScale;
-                viewport.translateX = touchState.lastMidpoint.x - canvasPoint.x * newScale;
-                viewport.translateY = touchState.lastMidpoint.y - canvasPoint.y * newScale;
-                
-                // 处理平移（中心点移动）
-                const midpointDx = currentMidpointLocal.x - touchState.lastMidpoint.x;
-                const midpointDy = currentMidpointLocal.y - touchState.lastMidpoint.y;
+                const midpointDx = currentMidpointLocal.x - lastMidpointLocal.x;
+                const midpointDy = currentMidpointLocal.y - lastMidpointLocal.y;
                 
                 viewport.translateX += midpointDx;
                 viewport.translateY += midpointDy;
@@ -938,25 +962,10 @@
                 applyViewportTransform();
                 
                 // 更新状态
-                touchState.lastDistance = currentDistance;
-                touchState.lastMidpoint = currentMidpointLocal;
-                
-            } else if (e.touches.length === 2 && touchState.isPanning) {
-                // 从单指平移切换到双指缩放
-                e.preventDefault();
-                const touch1 = e.touches[0];
-                const touch2 = e.touches[1];
-                
-                touchState.isPinching = true;
-                touchState.isPanning = false;
-                touchState.startDistance = getDistance(touch1, touch2);
-                touchState.lastDistance = touchState.startDistance;
-                
-                const midpoint = getMidpoint(touch1, touch2);
-                touchState.lastMidpoint = {
-                    x: midpoint.x - wrapperRect.left,
-                    y: midpoint.y - wrapperRect.top
-                };
+                touchState.lastTouches = [
+                    { x: touch1.clientX, y: touch1.clientY },
+                    { x: touch2.clientX, y: touch2.clientY }
+                ];
             }
         }
 
@@ -969,18 +978,16 @@
                 // 所有手指离开
                 touchState.isPinching = false;
                 touchState.isPanning = false;
-                touchState.lastMidpoint = null;
-            } else if (e.touches.length === 1 && touchState.isPinching) {
+                touchState.lastTouches = [];
+            } else if (e.touches.length === 1) {
                 // 从双指变为单指，切换到平移模式
-                e.preventDefault();
+                const touch = e.touches[0];
                 touchState.isPinching = false;
                 touchState.isPanning = true;
-                
-                const touch = e.touches[0];
-                touchState.lastMidpoint = {
-                    x: touch.clientX - wrapperRect.left,
-                    y: touch.clientY - wrapperRect.top
-                };
+                touchState.lastTouches = [{
+                    x: touch.clientX,
+                    y: touch.clientY
+                }];
             }
         }
 
