@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>游戏卡片边距比例计算器 - Card Centering</title>
+    <title>游戏卡片边距比例计算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -24,7 +24,14 @@
             touch-action: none;
             box-shadow: 0 0 8px rgba(0,0,0,0.5);
             z-index: 10;
+            opacity: 1;
+            transition: opacity 0.15s ease;
         }
+        
+        .marker.dragging {
+            opacity: 0.15;
+        }
+        
         .outer-marker { background-color: #ef4444; }
         .inner-marker { background-color: #3b82f6; }
         
@@ -36,6 +43,11 @@
             overflow: visible;
             max-width: 100%;
             touch-action: none;
+            cursor: crosshair;
+        }
+        
+        .canvas-container.dragging-edge {
+            cursor: move;
         }
         
         canvas {
@@ -60,6 +72,7 @@
             backdrop-filter: blur(8px);
             border: 2px solid rgba(255, 255, 255, 0.1);
             white-space: nowrap;
+            pointer-events: none;
         }
         
         .centering-text {
@@ -209,13 +222,14 @@
                 <div>
                     <h3 class="text-base sm:text-lg font-semibold mb-2">操作说明：</h3>
                     <ul class="list-disc list-inside text-xs sm:text-sm text-gray-700 space-y-1">
-                        <li>上传图片后自动生成8个角点</li>
-                        <li><span class="text-red-500 font-bold">红色点</span>代表外边框角点（卡片物理边缘）</li>
-                        <li><span class="text-blue-500 font-bold">蓝色点</span>代表内边框角点（设计边缘）</li>
-                        <li>拖动角点精确对齐边框位置</li>
-                        <li>拖动时显示放大镜辅助定位</li>
+                        <li>上传图片后自动生成8个角点和8条边</li>
+                        <li><span class="text-red-500 font-bold">红色</span>代表外边框（卡片物理边缘）</li>
+                        <li><span class="text-blue-500 font-bold">蓝色</span>代表内边框（设计边缘）</li>
+                        <li><strong>拖动角点</strong>：精确调整单个角点，拖动时角点半透明避免遮挡</li>
+                        <li><strong>拖动边线</strong>：点击边线附近拖动整条边</li>
+                        <li>支持任意角度的边框（透视拍摄）</li>
+                        <li>拖动角点时显示放大镜辅助定位</li>
                         <li>图片上方实时显示 Centering 数据</li>
-                        <li>✨ 支持透视角度拍摄，自动矫正计算</li>
                     </ul>
                 </div>
             </div>
@@ -369,12 +383,15 @@
         let innerPoints = [];
         let markers = [];
         let draggedMarker = null;
+        let draggedEdge = null;
         let draggedIndex = -1;
         let draggedType = '';
+        let dragStartPos = null;
         let canvasScale = 1;
 
         const ZOOM_LEVEL = 2;
         const MAGNIFIER_SIZE = window.innerWidth < 768 ? 100 : 120;
+        const EDGE_CLICK_THRESHOLD = window.innerWidth < 768 ? 20 : 15; // 点击边的阈值距离（像素）
 
         magnifierCanvas.width = MAGNIFIER_SIZE * 2;
         magnifierCanvas.height = MAGNIFIER_SIZE * 2;
@@ -446,8 +463,9 @@
             
             ctx.restore();
 
+            // 绘制外边框
             ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(outerPoints[0].x, outerPoints[0].y);
             for (let i = 1; i < outerPoints.length; i++) {
@@ -456,8 +474,9 @@
             ctx.closePath();
             ctx.stroke();
 
+            // 绘制内边框
             ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(innerPoints[0].x, innerPoints[0].y);
             for (let i = 1; i < innerPoints.length; i++) {
@@ -480,6 +499,21 @@
             });
         }
 
+        function updateMarkerPositions() {
+            const rect = canvas.getBoundingClientRect();
+            const displayScale = rect.width / canvas.width;
+            
+            markers.forEach(marker => {
+                const type = marker.dataset.type;
+                const index = parseInt(marker.dataset.index);
+                const points = type === 'outer' ? outerPoints : innerPoints;
+                const point = points[index];
+                
+                marker.style.left = (point.x * displayScale) + 'px';
+                marker.style.top = (point.y * displayScale) + 'px';
+            });
+        }
+
         function addMarker(x, y, type, index) {
             const marker = document.createElement('div');
             marker.className = `marker ${type}-marker`;
@@ -492,20 +526,143 @@
             marker.dataset.type = type;
             marker.dataset.index = index;
             
-            marker.addEventListener('mousedown', startDrag);
-            marker.addEventListener('touchstart', startDrag, {passive: false});
+            marker.addEventListener('mousedown', startDragMarker);
+            marker.addEventListener('touchstart', startDragMarker, {passive: false});
             
             canvasContainer.appendChild(marker);
             markers.push(marker);
         }
 
-        function startDrag(e) {
+        // 计算点到线段的最短距离
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+
+            if (lenSq !== 0) {
+                param = dot / lenSq;
+            }
+
+            let xx, yy;
+
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+
+            const dx = px - xx;
+            const dy = py - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // 检测点击位置是否在某条边附近
+        function findNearestEdge(canvasX, canvasY) {
+            let nearestEdge = null;
+            let minDistance = EDGE_CLICK_THRESHOLD;
+
+            // 检查外边框的4条边
+            for (let i = 0; i < 4; i++) {
+                const p1 = outerPoints[i];
+                const p2 = outerPoints[(i + 1) % 4];
+                const dist = pointToSegmentDistance(canvasX, canvasY, p1.x, p1.y, p2.x, p2.y);
+                
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestEdge = {
+                        type: 'outer',
+                        idx1: i,
+                        idx2: (i + 1) % 4,
+                        points: outerPoints
+                    };
+                }
+            }
+
+            // 检查内边框的4条边
+            for (let i = 0; i < 4; i++) {
+                const p1 = innerPoints[i];
+                const p2 = innerPoints[(i + 1) % 4];
+                const dist = pointToSegmentDistance(canvasX, canvasY, p1.x, p1.y, p2.x, p2.y);
+                
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestEdge = {
+                        type: 'inner',
+                        idx1: i,
+                        idx2: (i + 1) % 4,
+                        points: innerPoints
+                    };
+                }
+            }
+
+            return nearestEdge;
+        }
+
+        // Canvas 上的鼠标/触摸事件
+        canvas.addEventListener('mousedown', handleCanvasDown);
+        canvas.addEventListener('touchstart', handleCanvasDown, {passive: false});
+
+        function handleCanvasDown(e) {
+            const pos = getEventPosition(e);
+            const rect = canvas.getBoundingClientRect();
+            const displayScale = rect.width / canvas.width;
+            const canvasX = pos.x / displayScale;
+            const canvasY = pos.y / displayScale;
+
+            // 查找最近的边
+            const edge = findNearestEdge(canvasX, canvasY);
+            
+            if (edge) {
+                e.preventDefault();
+                e.stopPropagation();
+                startDragEdge(edge, canvasX, canvasY);
+            }
+        }
+
+        function startDragMarker(e) {
             e.preventDefault();
+            e.stopPropagation();
             draggedMarker = e.target;
             draggedType = draggedMarker.dataset.type;
             draggedIndex = parseInt(draggedMarker.dataset.index);
             
+            // 设置角点为半透明
+            draggedMarker.classList.add('dragging');
+            
+            canvasContainer.classList.add('dragging-edge');
             magnifier.style.display = 'block';
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', drag, {passive: false});
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function startDragEdge(edge, canvasX, canvasY) {
+            draggedEdge = edge;
+            draggedType = edge.type;
+            
+            // 记录初始位置
+            dragStartPos = {
+                x: canvasX,
+                y: canvasY,
+                p1: {...edge.points[edge.idx1]},
+                p2: {...edge.points[edge.idx2]}
+            };
+            
+            canvasContainer.classList.add('dragging-edge');
+            // 拖拽边时不显示放大镜
+            // magnifier.style.display = 'block';
             
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', stopDrag);
@@ -557,7 +714,7 @@
         }
 
         function drag(e) {
-            if (!draggedMarker) return;
+            if (!draggedMarker && !draggedEdge) return;
             e.preventDefault();
             
             const rect = canvas.getBoundingClientRect();
@@ -570,28 +727,56 @@
             const x = Math.max(0, Math.min(canvasX, canvas.width));
             const y = Math.max(0, Math.min(canvasY, canvas.height));
             
-            draggedMarker.style.left = (x * displayScale) + 'px';
-            draggedMarker.style.top = (y * displayScale) + 'px';
-            
-            if (draggedType === 'outer') {
-                outerPoints[draggedIndex] = {x, y};
-            } else {
-                innerPoints[draggedIndex] = {x, y};
+            if (draggedMarker) {
+                // 拖动单个角点 - 只更新数据和位置，不重建 marker
+                if (draggedType === 'outer') {
+                    outerPoints[draggedIndex] = {x, y};
+                } else {
+                    innerPoints[draggedIndex] = {x, y};
+                }
+                
+                // 直接更新被拖动的 marker 位置
+                draggedMarker.style.left = (x * displayScale) + 'px';
+                draggedMarker.style.top = (y * displayScale) + 'px';
+                
+                // 拖动角点时更新放大镜
+                updateMagnifier(x, y, pos.screenX, pos.screenY);
+            } else if (draggedEdge) {
+                // 拖动边 - 计算偏移量并应用到两个点
+                const dx = x - dragStartPos.x;
+                const dy = y - dragStartPos.y;
+                
+                const points = draggedType === 'outer' ? outerPoints : innerPoints;
+                
+                points[draggedEdge.idx1].x = Math.max(0, Math.min(dragStartPos.p1.x + dx, canvas.width));
+                points[draggedEdge.idx1].y = Math.max(0, Math.min(dragStartPos.p1.y + dy, canvas.height));
+                points[draggedEdge.idx2].x = Math.max(0, Math.min(dragStartPos.p2.x + dx, canvas.width));
+                points[draggedEdge.idx2].y = Math.max(0, Math.min(dragStartPos.p2.y + dy, canvas.height));
+                
+                // 只更新 marker 位置，不重建
+                updateMarkerPositions();
             }
             
             drawCanvas();
             calculateMargins();
-
-            updateMagnifier(x, y, pos.screenX, pos.screenY);
         }
 
         function stopDrag(e) {
-            if (draggedMarker) {
+            if (draggedMarker || draggedEdge) {
                 e.preventDefault();
             }
+            
+            // 恢复角点的不透明度
+            if (draggedMarker) {
+                draggedMarker.classList.remove('dragging');
+            }
+            
             draggedMarker = null;
+            draggedEdge = null;
             draggedIndex = -1;
             draggedType = '';
+            dragStartPos = null;
+            canvasContainer.classList.remove('dragging-edge');
             magnifier.style.display = 'none';
             document.removeEventListener('mousemove', drag);
             document.removeEventListener('mouseup', stopDrag);
@@ -735,7 +920,6 @@
             const ratioAvg = ((parseFloat(ratioTop) + parseFloat(ratioBottom) + 
                              parseFloat(ratioLeft) + parseFloat(ratioRight)) / 4).toFixed(2);
 
-            // 更新 Centering 覆层显示
             updateCenteringOverlay(ratioLeft, ratioRight, ratioTop, ratioBottom);
 
             document.getElementById('marginTop').textContent = `${marginTop.toFixed(1)} px`;
@@ -762,13 +946,11 @@
         }
 
         function updateCenteringOverlay(left, right, top, bottom) {
-            // 计算 Card Centering 格式
             const leftNum = parseFloat(left);
             const rightNum = parseFloat(right);
             const topNum = parseFloat(top);
             const bottomNum = parseFloat(bottom);
             
-            // 归一化为100的比例
             const totalLR = leftNum + rightNum;
             const totalTB = topNum + bottomNum;
             
