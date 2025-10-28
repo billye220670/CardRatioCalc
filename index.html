@@ -393,16 +393,14 @@
             maxScale: 5
         };
 
-        // 触摸状态
+        // 触摸状态 - iOS 风格
         let touchState = {
             isPanning: false,
             isPinching: false,
-            lastTouches: [],
+            lastMidpoint: null,
             startDistance: 0,
-            startScale: 1,
-            startTranslate: {x: 0, y: 0},
-            pinchCenter: {x: 0, y: 0},
-            activeTouches: 0
+            lastDistance: 0,
+            currentTouches: []
         };
 
         const isMobile = window.innerWidth < 768;
@@ -823,10 +821,7 @@
             magnifierCanvas.style.transform = `translate(-50%, -50%)`;
         }
 
-        // ===== 移动端双指缩放和平移 =====
-        
-        canvas.addEventListener('touchmove', handleCanvasTouchMove, {passive: false});
-        canvas.addEventListener('touchend', handleCanvasTouchEnd, {passive: false});
+        // ===== iOS 风格双指缩放和平移 =====
         
         canvasWrapper.addEventListener('touchstart', handleWrapperTouchStart, {passive: false});
         canvasWrapper.addEventListener('touchmove', handleWrapperTouchMove, {passive: false});
@@ -834,136 +829,159 @@
 
         function handleWrapperTouchStart(e) {
             if (!isMobile) return;
+            
+            // 如果正在拖拽角点或边，不处理
+            if (draggedMarker || draggedEdge) return;
+            
+            // 检查是否点击在 canvas 或 wrapper 上
             if (e.target !== canvasWrapper && e.target !== canvas) return;
             
-            touchState.activeTouches = e.touches.length;
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
             
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                startPinchZoom(e);
-            } else if (e.touches.length === 1 && !draggedMarker && !draggedEdge) {
+            if (e.touches.length === 1) {
+                // 单指：检查是否点击边缘
                 const touch = e.touches[0];
                 const pos = screenToCanvas(touch.clientX, touch.clientY);
                 const edge = findNearestEdge(pos.x, pos.y);
                 
                 if (!edge) {
+                    // 不是边缘，开始平移
                     e.preventDefault();
                     touchState.isPanning = true;
-                    touchState.lastTouches = [{
-                        x: touch.clientX,
-                        y: touch.clientY
-                    }];
+                    touchState.isPinching = false;
+                    touchState.lastMidpoint = {
+                        x: touch.clientX - wrapperRect.left,
+                        y: touch.clientY - wrapperRect.top
+                    };
                 }
+            } else if (e.touches.length === 2) {
+                // 双指：开始缩放
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                touchState.isPinching = true;
+                touchState.isPanning = false;
+                touchState.startDistance = getDistance(touch1, touch2);
+                touchState.lastDistance = touchState.startDistance;
+                
+                const midpoint = getMidpoint(touch1, touch2);
+                touchState.lastMidpoint = {
+                    x: midpoint.x - wrapperRect.left,
+                    y: midpoint.y - wrapperRect.top
+                };
             }
         }
 
         function handleWrapperTouchMove(e) {
             if (!isMobile) return;
             
-            if (e.touches.length === 2 && touchState.isPinching) {
-                e.preventDefault();
-                touchState.activeTouches = 2;
-                continuePinchZoom(e);
-            } else if (e.touches.length === 1 && touchState.isPanning) {
+            // 如果正在拖拽角点或边，不处理
+            if (draggedMarker || draggedEdge) return;
+            
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            
+            if (e.touches.length === 1 && touchState.isPanning) {
+                // 单指平移
                 e.preventDefault();
                 const touch = e.touches[0];
-                const dx = touch.clientX - touchState.lastTouches[0].x;
-                const dy = touch.clientY - touchState.lastTouches[0].y;
+                const currentPos = {
+                    x: touch.clientX - wrapperRect.left,
+                    y: touch.clientY - wrapperRect.top
+                };
+                
+                const dx = currentPos.x - touchState.lastMidpoint.x;
+                const dy = currentPos.y - touchState.lastMidpoint.y;
                 
                 viewport.translateX += dx;
                 viewport.translateY += dy;
                 
                 applyViewportTransform();
                 
-                touchState.lastTouches = [{
-                    x: touch.clientX,
-                    y: touch.clientY
-                }];
+                touchState.lastMidpoint = currentPos;
+                
+            } else if (e.touches.length === 2 && touchState.isPinching) {
+                // 双指缩放 + 平移
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                const currentDistance = getDistance(touch1, touch2);
+                const currentMidpoint = getMidpoint(touch1, touch2);
+                const currentMidpointLocal = {
+                    x: currentMidpoint.x - wrapperRect.left,
+                    y: currentMidpoint.y - wrapperRect.top
+                };
+                
+                // 计算缩放中心点在 canvas 上的坐标
+                const canvasPoint = {
+                    x: (touchState.lastMidpoint.x - viewport.translateX) / viewport.scale,
+                    y: (touchState.lastMidpoint.y - viewport.translateY) / viewport.scale
+                };
+                
+                // 计算新的缩放比例
+                const scaleDelta = currentDistance / touchState.lastDistance;
+                const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, viewport.scale * scaleDelta));
+                
+                // 更新缩放，保持缩放中心点不变
+                viewport.scale = newScale;
+                viewport.translateX = touchState.lastMidpoint.x - canvasPoint.x * newScale;
+                viewport.translateY = touchState.lastMidpoint.y - canvasPoint.y * newScale;
+                
+                // 处理平移（中心点移动）
+                const midpointDx = currentMidpointLocal.x - touchState.lastMidpoint.x;
+                const midpointDy = currentMidpointLocal.y - touchState.lastMidpoint.y;
+                
+                viewport.translateX += midpointDx;
+                viewport.translateY += midpointDy;
+                
+                applyViewportTransform();
+                
+                // 更新状态
+                touchState.lastDistance = currentDistance;
+                touchState.lastMidpoint = currentMidpointLocal;
+                
+            } else if (e.touches.length === 2 && touchState.isPanning) {
+                // 从单指平移切换到双指缩放
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                touchState.isPinching = true;
+                touchState.isPanning = false;
+                touchState.startDistance = getDistance(touch1, touch2);
+                touchState.lastDistance = touchState.startDistance;
+                
+                const midpoint = getMidpoint(touch1, touch2);
+                touchState.lastMidpoint = {
+                    x: midpoint.x - wrapperRect.left,
+                    y: midpoint.y - wrapperRect.top
+                };
             }
         }
 
         function handleWrapperTouchEnd(e) {
             if (!isMobile) return;
             
-            // 检查是否所有手指都离开了屏幕
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            
             if (e.touches.length === 0) {
+                // 所有手指离开
                 touchState.isPinching = false;
                 touchState.isPanning = false;
-                touchState.activeTouches = 0;
-            } else if (e.touches.length < 2 && touchState.isPinching) {
-                // 从双指变为单指，结束缩放
-                touchState.isPinching = false;
-                touchState.activeTouches = e.touches.length;
-            }
-        }
-
-        function handleCanvasTouchMove(e) {
-            if (!isMobile) return;
-            
-            if (e.touches.length === 2 && touchState.isPinching) {
+                touchState.lastMidpoint = null;
+            } else if (e.touches.length === 1 && touchState.isPinching) {
+                // 从双指变为单指，切换到平移模式
                 e.preventDefault();
-                continuePinchZoom(e);
-            }
-        }
-
-        function handleCanvasTouchEnd(e) {
-            if (!isMobile) return;
-            
-            if (e.touches.length === 0) {
                 touchState.isPinching = false;
-                touchState.activeTouches = 0;
-            } else if (e.touches.length < 2) {
-                touchState.isPinching = false;
-                touchState.activeTouches = e.touches.length;
+                touchState.isPanning = true;
+                
+                const touch = e.touches[0];
+                touchState.lastMidpoint = {
+                    x: touch.clientX - wrapperRect.left,
+                    y: touch.clientY - wrapperRect.top
+                };
             }
-        }
-
-        function startPinchZoom(e) {
-            const touch1 = e.touches[0];
-            const touch2 = e.touches[1];
-            
-            touchState.isPinching = true;
-            touchState.activeTouches = 2;
-            touchState.startDistance = getDistance(touch1, touch2);
-            touchState.startScale = viewport.scale;
-            
-            const midpoint = getMidpoint(touch1, touch2);
-            const wrapperRect = canvasWrapper.getBoundingClientRect();
-            touchState.pinchCenter = {
-                x: midpoint.x - wrapperRect.left,
-                y: midpoint.y - wrapperRect.top
-            };
-            
-            touchState.startTranslate = {
-                x: viewport.translateX,
-                y: viewport.translateY
-            };
-        }
-
-        function continuePinchZoom(e) {
-            // 确保仍然是双指触摸
-            if (e.touches.length !== 2) {
-                return;
-            }
-            
-            const touch1 = e.touches[0];
-            const touch2 = e.touches[1];
-            
-            const currentDistance = getDistance(touch1, touch2);
-            const scale = (currentDistance / touchState.startDistance) * touchState.startScale;
-            
-            const newScale = Math.max(viewport.minScale, Math.min(viewport.maxScale, scale));
-            
-            const canvasPoint = {
-                x: (touchState.pinchCenter.x - touchState.startTranslate.x) / touchState.startScale,
-                y: (touchState.pinchCenter.y - touchState.startTranslate.y) / touchState.startScale
-            };
-            
-            viewport.scale = newScale;
-            viewport.translateX = touchState.pinchCenter.x - canvasPoint.x * newScale;
-            viewport.translateY = touchState.pinchCenter.y - canvasPoint.y * newScale;
-            
-            applyViewportTransform();
         }
 
         function getDistance(touch1, touch2) {
